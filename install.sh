@@ -1,9 +1,9 @@
 # Check if Nix is already sourced
 if [ ! -f "${HOME}/.nix-profile/etc/profile.d/nix.sh" ]; then
-  echo 'Installing Nix Package Manager'
+  echo 'Installing Nix Package Manager \n'
   curl -L https://nixos.org/nix/install | sh -s -- --no-daemon
 else
-  echo 'Nix Package Manager already installed'
+  echo 'Nix Package Manager already installed \n'
 fi
 
 # Source nix
@@ -12,17 +12,20 @@ fi
 # --------------------------------------------------------------------------
 
 # Multi-platform Packages
-nix-env -iA \
-  nixpkgs.kitty   \
-  nixpkgs.antigen \
-  nixpkgs.eza     \
-  nixpkgs.fzf     \
-  nixpkgs.tmux    \
-  nixpkgs.atuin   \
-  nixpkgs.lazygit \
-  nixpkgs.stow    \
-  nixpkgs.neovim  \
-  nixpkgs.ripgrep
+nix-env -iA                 \
+  nixpkgs.antigen           \
+  nixpkgs.atuin             \
+  nixpkgs.eza               \
+  nixpkgs.fzf               \
+  nixpkgs.glibcLocales      \
+  nixpkgs.lazygit           \
+  nixpkgs.neovim            \
+  nixpkgs.ripgrep           \
+  nixpkgs.stow              \
+  nixpkgs.tmux
+
+# Install kitty terminal
+curl -s -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
 
 # --------------------------------------------------------------------------
 
@@ -50,12 +53,11 @@ OS=`uname`
 if [ "$OS" = "Linux" ]; then
   echo "Installing Linux-specific Packages"
 
-  # Install i3wm
-  # nix-env -i i3 
-  # nix-env -i feh # wallpaper
-  # nix-env -i picom # window corners and transparency
-
-  nix-env -i zsh
+  nix-env -iA \
+    nixpkgs.zsh \
+    nixpkgs.feh \
+    nixpkgs.arandr \
+    nixpkgs.picom
 
   # Add zsh as a login shell
   command -v zsh | sudo tee -a /etc/shells

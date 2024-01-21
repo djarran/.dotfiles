@@ -1,3 +1,8 @@
+. ~/.nix-profile/etc/profile.d/nix.sh
+
+# https://unix.stackexchange.com/questions/187402/nix-package-manager-perl-warning-setting-locale-failed
+export LOCALE_ARCHIVE="$(nix-env --installed --no-name --out-path --query glibc-locales)/lib/locale/locale-archive"
+
 # Lines configured by zsh-newuser-install
 HISTFILE=~/.histfile
 HISTSIZE=1000
@@ -28,7 +33,7 @@ if [[ "$(hostname)" == "catau-bri-laptop2061" ]]; then
 
 fi
 
-eval "$(zoxide init zsh)"
+# eval "$(zoxide init zsh)"
 
 # Change directory aliases
 alias cdd='cd ../'
@@ -60,6 +65,5 @@ eval "$(starship init zsh)"
 eval "$(atuin init zsh)"
 
 
-. ~/.nix-profile/etc/profile.d/nix.sh
 
 # if [ -e /home/djarrancotleanu/.nix-profile/etc/profile.d/nix.sh ]; then . /home/djarrancotleanu/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
