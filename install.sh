@@ -1,28 +1,19 @@
-# Check if Nix is already sourced
-if [ ! -f "${HOME}/.nix-profile/etc/profile.d/nix.sh" ]; then
-  echo 'Installing Nix Package Manager \n'
-  curl -L https://nixos.org/nix/install | sh -s -- --no-daemon
-else
-  echo 'Nix Package Manager already installed \n'
-fi
-
-# Source nix
-. "${HOME}/.nix-profile/etc/profile.d/nix.sh"
 
 # --------------------------------------------------------------------------
 
 # Multi-platform Packages
-nix-env -iA                 \
-  nixpkgs.antigen           \
-  nixpkgs.atuin             \
-  nixpkgs.eza               \
-  nixpkgs.fzf               \
-  nixpkgs.glibcLocales      \
-  nixpkgs.lazygit           \
-  nixpkgs.neovim            \
-  nixpkgs.ripgrep           \
-  nixpkgs.stow              \
-  nixpkgs.tmux
+nix-env -i atuin
+nix-env -i eza
+nix-env -i fzf
+nix-env -i lazygit
+nix-env -i neovim
+nix-env -i ripgrep
+nix-env -i stow
+nix-env -i tmux
+nix-env -i zoxide
+
+# Install antigen (zsh plugin manager)
+curl -L git.io/antigen > antigen.zsh
 
 # Install kitty terminal
 curl -s -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
@@ -45,6 +36,9 @@ else
     echo "NVChad already cloned"
 fi
 
+# Install catppuccin zsh theme
+git clone git@github.com:catppuccin/zsh-syntax-highlighting.git ~/.zsh/themes/
+
 # --------------------------------------------------------------------------
 
 # Install OS Dependent Packages
@@ -59,6 +53,7 @@ if [ "$OS" = "Linux" ]; then
     nixpkgs.arandr \
     nixpkgs.picom
 
+  nix-env -i glibc-locales
   # Add zsh as a login shell
   command -v zsh | sudo tee -a /etc/shells
 
