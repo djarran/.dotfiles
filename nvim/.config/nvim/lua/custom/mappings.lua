@@ -1,5 +1,39 @@
 local M = {}
 
+M.Dap = {
+  n = {
+    ["<leader>dc"] = { "<cmd>lua require'dap'.continue()<cr>", "Continue", opts = { silent = true } },
+
+    ["<leader>do"] = { "<cmd>lua require'dap'.step_over()<cr>", "Step Over", opts = { silent = true } },
+
+    ["<leader>di"] = { "<cmd>lua require'dap'.step_into()<cr>", "Step Into", opts = { silent = true } },
+
+    ["<leader>du"] = { "<cmd>lua require'dap'.step_out()<cr>", "Step Out", opts = { silent = true } },
+
+    ["<leader>db"] = { "<cmd>lua require'dap'.toggle_breakpoint()<cr>", "Breakpoint", opts = { silent = true } },
+
+    ["<leader>dB"] = {
+      "<cmd>lua require'dap'.set_breakpoint(vim.fn.input('Breakpoint condition: '))<cr>",
+      "Breakpoint Condition",
+      opts = { silent = true },
+    },
+
+    ["<leader>dd"] = { "<cmd>lua require'dapui'.toggle()<cr>", "Dap UI", opts = { silent = true } },
+
+    ["<leader>dl"] = { "<cmd>lua require'dap'.run_last()<cr>", "Run Last", opts = { silent = true } },
+  },
+}
+
+M.Sessions = {
+  n = {
+    ["<leader>ss"] = { "<cmd>execute 'SessionStart' | execute 'SessionSave'<cr>", "Save", opts = { silent = true } },
+    ["<leader>so"] = { "<cmd>SessionStop<cr>", "Stop", opts = { silent = true } },
+    ["<leader>st"] = { "<cmd>SessionToggle<cr>", "Toggle", opts = { silent = true } },
+    ["<leader>sl"] = { "<cmd>SessionLoad<cr>", "Load", opts = { silent = true } },
+    ["<leader>sd"] = { "<cmd>SessionDelete<cr>", "Delete", opts = { silent = true } },
+  },
+}
+
 -- Keymaps for Git-related Commands
 M.git = {
   n = {
@@ -9,7 +43,8 @@ M.git = {
     ["<leader>gf"] = { "<cmd>GitBlameOpenFileURL<cr>", "Open File Url", opts = { silent = true } },
     ["<leader>gC"] = { "<cmd>GitBlameCopyFileURL<cr>", "Copy File Url", opts = { silent = true } },
     ["<leader>gs"] = { "<cmd>GitBlameCopySHA<cr>", "Copy SHA", opts = { silent = true } },
-    ["<leader>gt"] = { "", "Git Branches", opts = { silent = true } },
+    -- ["<leader>gt"] = { "", "Git Branches", opts = { silent = true } },
+
     ["<leader>gtb"] = { "<cmd>Telescope git_branches<cr>", " Branches", opts = { silent = true } },
     ["<leader>gtc"] = { "<cmd>Telescope git_commits<cr>", "󰜜 Commits", opts = { silent = true } },
     ["<leader>gB"] = {
