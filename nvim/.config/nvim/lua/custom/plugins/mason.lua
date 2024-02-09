@@ -9,6 +9,7 @@ return {
       "intelephense",
       "phpactor",
       "phpcs",
+      "lua-language-server"
     }
   }
 }
