@@ -1,5 +1,53 @@
 local M = {}
 
+M.Projects = {
+  n = {
+    ["<leader>pr"] = {
+      function()
+        local project_nvim = require("project_nvim")
+        local recent_projects = project_nvim.get_recent_projects()
+
+        print(vim.inspect(recent_projects))
+      end
+    },
+    ["<leader>fp"] = { "<cmd>Telescope projects<cr>", "Find projects", opts = { silent = true } },
+  }
+}
+
+M.Harpoon = {
+  n = {
+    ["<leader>ha"] = {
+      function()
+        require("harpoon"):list():append()
+        vim.notify("   Marked file", vim.log.levels.INFO, { title = "Harpoon" })
+      end,
+      "Add Mark",
+      opts = { silent = true },
+    },
+    ["<leader>hh"] = {
+      function()
+        require("harpoon").ui:toggle_quick_menu(require("harpoon"):list())
+      end,
+      "Harpoon Menu",
+      opts = { silent = true },
+    },
+    -- ["<leader>hn"] = {
+    --   function()
+    --     require("harpoon"):list():next()
+    --   end,
+    --   "Next",
+    --   opts = { silent = true },
+    -- },
+    -- ["<leader>hp"] = {
+    --   function()
+    --     require("harpoon"):list():prev()
+    --   end,
+    --   "Previous",
+    --   opts = { silent = true },
+    -- },
+  },
+}
+
 M.Dap = {
   n = {
     ["<leader>dc"] = { "<cmd>lua require'dap'.continue()<cr>", "Continue", opts = { silent = true } },
@@ -31,6 +79,7 @@ M.Sessions = {
     ["<leader>st"] = { "<cmd>SessionToggle<cr>", "Toggle", opts = { silent = true } },
     ["<leader>sl"] = { "<cmd>SessionLoad<cr>", "Load", opts = { silent = true } },
     ["<leader>sd"] = { "<cmd>SessionDelete<cr>", "Delete", opts = { silent = true } },
+    ["<leader>fs"] = { "<cmd>Telescope persisted<cr>", "Find sessions", opts = { silent = true } },
   },
 }
 
