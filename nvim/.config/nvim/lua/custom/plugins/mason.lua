@@ -9,7 +9,9 @@ return {
       "intelephense",
       "phpactor",
       "phpcs",
-      "lua-language-server"
+      "lua-language-server",
+      "typescript-language-server",
+      "marksman"
     }
   }
 }
