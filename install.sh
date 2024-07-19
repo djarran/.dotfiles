@@ -1,19 +1,41 @@
 
-# --------------------------------------------------------------------------
-
 # Multi-platform Packages
-nix-env -i atuin
-nix-env -i eza
-nix-env -i fzf
-nix-env -i lazygit
-nix-env -i neovim
-nix-env -i ripgrep
-nix-env -i stow
-nix-env -i tmux
-nix-env -i zoxide
+install_if_not_installed() {
+    PACKAGE=$1
+    if nix-env -q | grep -q "^$PACKAGE"; then
+        echo "$PACKAGE is already installed."
+    else
+        echo "Installing $PACKAGE..."
+        nix-env -i $PACKAGE
+    fi
+}
+
+install_if_not_installed atuin
+install_if_not_installed eza
+install_if_not_installed fzf
+install_if_not_installed lazygit
+install_if_not_installed neovim
+install_if_not_installed ripgrep
+install_if_not_installed stow
+install_if_not_installed tmux
+install_if_not_installed zoxide
 
 # Install antigen (zsh plugin manager)
-curl -L git.io/antigen > antigen.zsh
+ANTIGEN_FILE="$HOME/antigen.zsh"
+
+install_antigen() {
+    if [ -f "$ANTIGEN_FILE" ]; then
+        echo "antigen is already installed."
+    else
+        curl -L git.io/antigen > antigen.zsh
+        if [ $? -eq 0 ]; then
+            echo "antigen installed successfully."
+        else
+            echo "Failed to install antigen. Exiting."
+            exit 1
+        fi
+    fi
+}
 
 # Install kitty terminal
 curl -s -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
@@ -31,13 +53,14 @@ fi
 # Install NVChad
 if [ ! -d "${HOME}/.config/nvim/lua/plugins" ]; then
     echo "Installing NVChad"
-    git clone https://github.com/NvChad/NvChad ~/.config/nvim --depth 1
+    git clone https://github.com/NvChad/starter ~/.config/nvim
 else
     echo "NVChad already cloned"
 fi
 
 # Install catppuccin zsh theme
 git clone git@github.com:catppuccin/zsh-syntax-highlighting.git ~/.zsh/themes/
+mv ~/.zsh/themes/themes/catppuccin_frappe-zsh-syntax-highlighting.zsh ~/.zsh/themes/
 
 # --------------------------------------------------------------------------
 
@@ -71,15 +94,15 @@ elif [ "$OS" = "Darwin" ]; then
   echo "Installing macOS-specific Packages"
 
   # Install yabai
-  if ! brew list | grep -q "^yabai\$"; then
-      brew install koekeishiya/formulae/yabai
-  else
-      echo "yabai already installed"
-  fi
+  # if ! brew list | grep -q "^yabai\$"; then
+      # brew install koekeishiya/formulae/yabai
+  # else
+      # echo "yabai already installed"
+  # fi
 
   # Install skhd (System-wide keybindings via config file)
-  brew install koekeishiya/formulae/skhd
-  skhd --start-service
+  # brew install koekeishiya/formulae/skhd
+  # skhd --start-service
 fi
 
 # --------------------------------------------------------------------------
@@ -125,3 +148,13 @@ elif [ "$OS" = "Darwin" ]; then
     echo 'Monaspice Font Already Installed'
   fi
 fi
+
+# Instructions for installing TPM plugins
+echo "To install TPM (Tmux Plugin Manager) plugins, please do the following:"
+echo
+echo "1. Open your tmux session."
+echo "2. Press 'prefix + I' (usually 'Ctrl + b' followed by 'I')."
+echo
+echo "This will:"
+echo "  - Install new plugins from GitHub or any other git repository."
+echo "  - Refresh the TMUX environment."
