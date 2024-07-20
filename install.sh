@@ -93,6 +93,13 @@ elif [ "$OS" = "Darwin" ]; then
 
   echo "Installing macOS-specific Packages"
 
+  echo "Installing AeroSpace"
+  brew install --cask nikitabobko/tap/aerospace
+
+  echo "Installing JankyBorders"
+  brew tap FelixKratz/formulae
+  brew install borders
+  brew services start borders
   # Install yabai
   # if ! brew list | grep -q "^yabai\$"; then
       # brew install koekeishiya/formulae/yabai
