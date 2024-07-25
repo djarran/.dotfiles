@@ -7,6 +7,8 @@ local map = vim.keymap.set
 map("n", ";", ":", { desc = "CMD enter command mode" })
 map("i", "jk", "<ESC>")
 
+map("n", "<leader>-", "<cmd>Oil --float<cr>", {desc = "Wow", silent = true})
+
 -- Sessions
 map("n", "<leader>ss", "<cmd>execute 'SessionStart' | execute 'SessionSave'<cr>", { desc = "Save Session", silent = true })
 map("n", "<leader>so", "<cmd>SessionStop<cr>", { desc = "Stop Session", silent = true })
