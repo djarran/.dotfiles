@@ -7,7 +7,9 @@ local map = vim.keymap.set
 map("n", ";", ":", { desc = "CMD enter command mode" })
 map("i", "jk", "<ESC>")
 
-map("n", "<leader>-", "<cmd>Oil --float<cr>", {desc = "Wow", silent = true})
+map("n", "-", "<cmd>Oil --float<cr>", {desc = "Wow", silent = true})
+
+map('n', '<leader>yp', "<cmd>lua local cwd = vim.fn.getcwd(); local file = vim.fn.expand('%:p'); local relative_path = file:gsub(cwd .. '/', ''); vim.fn.setreg('+', relative_path); print('Yanked relative path: ' .. relative_path)<CR>", { desc = "Yank relative file path", noremap = true, silent = true })
 
 -- Sessions
 map("n", "<leader>ss", "<cmd>execute 'SessionStart' | execute 'SessionSave'<cr>", { desc = "Save Session", silent = true })
