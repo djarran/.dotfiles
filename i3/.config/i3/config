@@ -31,7 +31,7 @@ exec --no-startup-id xss-lock --transfer-sleep-lock -- i3lock --nofork
 exec_always --no-startup-id picom -b --config ~/.config/picom/picom.conf
 
 # Configure the modifier Alt Key (Mod1) | Windows Key (Mod4)
-set $mod Mod4
+set $mod Mod1
 
 bindsym $mod+y bar mode toggle
 
