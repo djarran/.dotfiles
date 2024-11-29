@@ -20,9 +20,9 @@ bashcompinit
 # End of lines added by compinstall
 
 # Work-related Items
-if [[ "$(hostname)" == "catau-bri-laptop2061" ]]; then
 
-  keychain --nogui --quiet --timeout 240 id_rsa_github id_rsa_bitbucket id_rsa_gitlab id_rsa_gitlab_eu
+eval `keychain --eval`
+  keychain --nogui --quiet --timeout 240 id_rsa_github id_rsa_bitbucket id_rsa_gitlab_two id_rsa_gitlab_eu id_rsa_gitlab_ca id_rsa_gitlab_mahara
 
   if [ -f ~/.config/docker-dev/config ]; then
     eval $(grep "^DOCKER_DEV_ROOT=" ~/.config/docker-dev/config)
@@ -31,7 +31,6 @@ if [[ "$(hostname)" == "catau-bri-laptop2061" ]]; then
 
   alias gc='git clean -ffd && git submodule sync && git submodule update --init --recursive --force --jobs 16'
 
-fi
 
 # eval "$(zoxide init zsh)"
 
@@ -39,6 +38,8 @@ fi
 alias cdd='cd ../'
 alias cddd='cd ../../'
 alias cdddd='cd ../../../'
+
+alias lz='lazygit'
 
 # Antigen (zsh plugin manager): https://github.com/zsh-users/antigen
 source $HOME/antigen.zsh
@@ -64,6 +65,10 @@ eval "$(starship init zsh)"
 
 eval "$(atuin init zsh)"
 
-
+export PATH=$PATH:/usr/local/go/bin
 
 # if [ -e /home/djarrancotleanu/.nix-profile/etc/profile.d/nix.sh ]; then . /home/djarrancotleanu/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
