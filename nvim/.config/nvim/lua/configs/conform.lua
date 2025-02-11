@@ -5,13 +5,18 @@ local options = {
     html = { "prettier" },
     javascript = { "prettier" },
     typescript = { "prettier" },
+    python = { "isort", "black" },
   },
-
-  -- format_on_save = {
-  --   -- These options will be passed to conform.format()
-  --   timeout_ms = 500,
-  --   lsp_fallback = true,
-  -- },
+  formatters = {
+    black = {
+      prepend_args = { "--fast" },
+    },
+  },
+  format_on_save = {
+    -- These options will be passed to conform.format()
+    timeout_ms = 5000,
+    lsp_fallback = true,
+  },
 }
 
 require("conform").setup(options)
