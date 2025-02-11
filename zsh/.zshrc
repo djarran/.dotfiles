@@ -1,8 +1,3 @@
-. ~/.nix-profile/etc/profile.d/nix.sh
-
-# https://unix.stackexchange.com/questions/187402/nix-package-manager-perl-warning-setting-locale-failed
-export LOCALE_ARCHIVE="$(nix-env --installed --no-name --out-path --query glibc-locales)/lib/locale/locale-archive"
-
 # Lines configured by zsh-newuser-install
 HISTFILE=~/.histfile
 HISTSIZE=1000
@@ -55,15 +50,27 @@ ZVM_VI_INSERT_ESCAPE_BINDKEY=jk
 ZVM_VI_EDITOR=nvim
 
 # Exa (ls alternative): https://the.exa.website/
-alias ls='exa'
+alias ls='eza'
+alias lz='lazygit'
+
+export PATH="$PATH:/Applications/Docker.app/Contents/Resources/bin/"
 
 eval "$(zoxide init zsh)"
 
 # Starship (custom prompt): https://starship.rs/
 eval "$(starship init zsh)"
 
-eval "$(atuin init zsh)"
 
 
 
 # if [ -e /home/djarrancotleanu/.nix-profile/etc/profile.d/nix.sh ]; then . /home/djarrancotleanu/.nix-profile/etc/profile.d/nix.sh; fi # added by Nix installer
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+# Add RVM to PATH for scripting. Make sure this is the last PATH variable change.
+export PATH="$PATH:$HOME/.rvm/bin"
+
+. "$HOME/.atuin/bin/env"
+eval "$(atuin init zsh)"
