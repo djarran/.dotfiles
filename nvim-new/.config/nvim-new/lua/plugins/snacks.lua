@@ -20,4 +20,3 @@ vim.keymap.set("n", "<leader>f-", function() require("snacks").explorer() end)
 -- https://github.com/dandavison/delta
 -- https://github.com/jesseduffield/lazygit/blob/master/docs/Custom_Pagers.md
 vim.keymap.set("n", "<leader>gg", function() require("snacks").lazygit.open() end)
-

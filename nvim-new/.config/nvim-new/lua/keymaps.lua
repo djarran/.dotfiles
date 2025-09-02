@@ -34,27 +34,8 @@ vim.keymap.set("n", "<C-j>", "<C-w>j", { desc = "Move to window below" })
 vim.keymap.set("n", "<C-k>", "<C-w>k", { desc = "Move to window above" })
 vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Move to right window" })
 
-
 keymap("n", "<Leader>j", "<cmd>split<CR><C-w>w", s) -- Split the window horizontally
 keymap("n", "<Leader>l", "<cmd>vsplit<CR><C-w>w", s) -- Split the window vertically
 vim.keymap.set('i', 'jk', '<Esc>', { desc = 'Map jk to Esc in insert mode' })
 
--- Map p to paste from the system clipboard in normal mode
-vim.keymap.set("n", "p", '"*p', { desc = "Paste from system clipboard" })
-
--- Map P to paste from the system clipboard before the cursor in normal mode
-vim.keymap.set("n", "P", '"*P', { desc = "Paste before from system clipboard" })
-
--- Map p to paste from the system clipboard in visual mode, replacing the selected text
-vim.keymap.set("x", "p", '"*p', { desc = "Paste from system clipboard in visual mode" })
-
--- Yank to the system clipboard in visual mode
-vim.keymap.set("x", "y", '"+y')
-
--- Yank to the system clipboard in normal mode
-vim.keymap.set("n", "y", '"+y')
-
--- Yank the entire line to the system clipboard in normal mode with yy
-vim.keymap.set("n", "yy", '"+yy')
-
-
+vim.opt.clipboard = "unnamedplus"
