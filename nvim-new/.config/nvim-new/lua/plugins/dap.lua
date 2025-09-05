@@ -3,6 +3,11 @@ vim.pack.add({
         src = "https://github.com/mfussenegger/nvim-dap",
     }
 })
+vim.pack.add({
+    {
+        src = "https://github.com/leoluz/nvim-dap-go",
+    }
+})
 
 local dap = require("dap")
 vim.fn.sign_define("DapBreakpoint", { text = "", texthl = "DiagnosticSignError", linehl = "", numhl = "" })
@@ -26,6 +31,19 @@ dap.adapters.php = {
 --     },
 -- }
 
+require("dap-go").setup {
+    dap_configurations = {
+        {
+            type = "go",
+            name = "Attach remote",
+            mode = "remote",
+            request = "attach",
+            host = "127.0.0.1",
+            port = "38697",
+            program = "main.go",
+        },
+    },
+}
 local keymap = vim.keymap.set
 
 -- Breakpoint
