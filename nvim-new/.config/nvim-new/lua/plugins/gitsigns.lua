@@ -3,3 +3,10 @@ vim.pack.add({
 })
 
 require('gitsigns').setup({ signcolumn = true })
+
+local wk = require("which-key")
+wk.add({
+  { "<leader>g", group = "git" },
+  { "<leader>gb", "<cmd>Gitsigns blame_line<CR>", desc = "Blame line" },
+  { "<leader>gB", "<cmd>Gitsigns toggle_current_line_blame<CR>", desc = "Toggle line blame" },
+})
