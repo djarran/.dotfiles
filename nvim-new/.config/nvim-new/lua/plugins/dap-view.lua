@@ -24,11 +24,11 @@ require('dap-view').setup({
     }
 })
 
-local keymap = vim.keymap.set
-
--- Toggle UI
-keymap("n", "<leader>ddd", "<cmd>DapViewToggle<CR>", { desc = "DAP UI: Toggle", silent = true })
-
-keymap("n", "<leader>ddb", "<cmd>DapViewOpen<CR><cmd>DapViewJump breakpoints<CR>", { desc = "DAP UI: Toggle", silent = true })
-keymap("n", "<leader>ddt", "<cmd>DapViewOpen<CR><cmd>DapViewJump threads<CR>", { desc = "DAP UI: Toggle", silent = true })
-keymap("n", "<leader>dds", "<cmd>DapViewOpen<CR><cmd>DapViewJump scopes<CR>", { desc = "DAP UI: Toggle", silent = true })
+local wk = require("which-key")
+wk.add({
+  { "<leader>dd", group = "dap view", icon = { icon = "󰃤", color = "red" } },
+  { "<leader>ddd", "<cmd>DapViewToggle<CR>", desc = "Toggle UI", icon = { icon = "󰃤", color = "red" } },
+  { "<leader>ddb", "<cmd>DapViewOpen<CR><cmd>DapViewJump breakpoints<CR>", desc = "Breakpoints", icon = { icon = "󰃤", color = "red" } },
+  { "<leader>ddt", "<cmd>DapViewOpen<CR><cmd>DapViewJump threads<CR>", desc = "Threads", icon = { icon = "󰃤", color = "red" } },
+  { "<leader>dds", "<cmd>DapViewOpen<CR><cmd>DapViewJump scopes<CR>", desc = "Scopes", icon = { icon = "󰃤", color = "red" } },
+})
