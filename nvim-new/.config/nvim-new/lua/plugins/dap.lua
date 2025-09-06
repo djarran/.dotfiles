@@ -44,63 +44,97 @@ require("dap-go").setup {
         },
     },
 }
-local keymap = vim.keymap.set
-
--- Breakpoint
-keymap("n", "<leader>db", function()
-    require("dap").toggle_breakpoint()
-end, { desc = "DAP: Toggle breakpoint", silent = true })
-
--- Conditional breakpoint
-keymap("n", "<leader>dB", function()
-    local cond = vim.fn.input("Breakpoint condition: ")
-    require("dap").set_breakpoint(cond)
-end, { desc = "DAP: Set conditional breakpoint", silent = true })
-
--- Continue / start
-keymap("n", "<leader>dc", function()
-    require("dap").continue()
-end, { desc = "DAP: Continue / Start", silent = true })
-
--- Step over
-keymap("n", "<leader>do", function()
-    require("dap").step_over()
-end, { desc = "DAP: Step over", silent = true })
-keymap("n", "<F11>", function()
-    require("dap").step_over()
-end, { desc = "DAP: Step over", silent = true })
-
--- Step into
-keymap("n", "<leader>di", function()
-    require("dap").step_into()
-end, { desc = "DAP: Step into", silent = true })
-keymap("n", "<F10>", function()
-    require("dap").step_into()
-end, { desc = "DAP: Step into", silent = true })
-
--- Terminate
-keymap("n", "<leader>dt", function()
-    require("dap").terminate()
-end, { desc = "DAP: Terminate debug session", silent = true })
-
--- Hover?
-keymap("n", "<leader>dh", function()
-    local widgets = require("dap.ui.widgets")
-    widgets.hover()
-end, { desc = "DAP UI: Hover", silent = true })
-
-keymap("n", "<leader>ds", function()
-    local widgets = require("dap.ui.widgets")
-    widgets.centered_float(widgets.scopes, { border = "rounded" })
-end, { desc = "DAP UI: Show scopes (float)", silent = true })
-
-keymap("n", "<leader>dre", function()
-    require("dap").repl.open()
-end, { desc = "DAP: Open REPL", silent = true })
-
-vim.keymap.set("n", "<leader>dg", function()
-    require("dap").run_to_cursor()
-end, { desc = "DAP: Run to Cursor", silent = true })
+local wk = require("which-key")
+wk.add({
+    { "<leader>d", group = "debug" },
+    {
+        "<leader>db",
+        function()
+            require("dap").toggle_breakpoint()
+        end,
+        desc = "Toggle breakpoint"
+    },
+    {
+        "<leader>dB",
+        function()
+            local cond = vim.fn.input("Breakpoint condition: ")
+            require("dap").set_breakpoint(cond)
+        end,
+        desc = "Set conditional breakpoint"
+    },
+    {
+        "<leader>dc",
+        function()
+            require("dap").continue()
+        end,
+        desc = "Continue / Start"
+    },
+    {
+        "<leader>do",
+        function()
+            require("dap").step_over()
+        end,
+        desc = "Step over"
+    },
+    {
+        "<F11>",
+        function()
+            require("dap").step_over()
+        end,
+        desc = "Step over"
+    },
+    {
+        "<leader>di",
+        function()
+            require("dap").step_into()
+        end,
+        desc = "Step into"
+    },
+    {
+        "<F10>",
+        function()
+            require("dap").step_into()
+        end,
+        desc = "Step into"
+    },
+    {
+        "<leader>dt",
+        function()
+            require("dap").terminate()
+        end,
+        desc = "Terminate debug session"
+    },
+    {
+        "<leader>dh",
+        function()
+            local widgets = require("dap.ui.widgets")
+            widgets.hover()
+        end,
+        desc = "Hover"
+    },
+    {
+        "<leader>ds",
+        function()
+            local widgets = require("dap.ui.widgets")
+            widgets.centered_float(widgets.scopes, { border = "rounded" })
+        end,
+        desc = "Show scopes (float)"
+    },
+    {
+        "<leader>dre",
+        function()
+            require("dap").repl.open()
+        end,
+        desc = "Open REPL"
+    },
+    {
+        "<leader>dg",
+        function()
+            require("dap").run_to_cursor()
+        end,
+        desc = "Run to Cursor"
+    },
+})
 
 
 
