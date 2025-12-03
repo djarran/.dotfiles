@@ -2,6 +2,11 @@ vim.pack.add({
     { src = "https://github.com/folke/snacks.nvim" },
 })
 
+require("snacks").setup({
+    -- Needed for opencode.nvim plugin
+    input = { enabled = true }
+})
+
 local wk = require("which-key")
 wk.add({
     -- Find group
