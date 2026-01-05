@@ -21,4 +21,8 @@ wk.add({
 
     -- General picker
     { "<leader>,",  function() require("snacks").picker() end,              desc = "Picker" },
+
+    -- LSP
+    { "<leader>l",  group = "LSP" },
+    { "<leader>ls", function() require("snacks").picker.lsp_symbols() end,        desc = "Symbols" },
 })
