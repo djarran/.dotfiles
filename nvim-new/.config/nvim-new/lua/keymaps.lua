@@ -47,7 +47,7 @@ keymap("n", "<leader>gd", "<cmd>lua vim.lsp.buf.definition()<CR>",
     vim.tbl_extend("force", opts, { desc = "Go to definition" }))
 keymap("n", "<leader>fm", "<cmd>lua vim.lsp.buf.format({ async = true })<CR>",
     vim.tbl_extend("force", opts, { desc = "Format buffer" }))
-
+keymap("n", "gr", vim.lsp.buf.references, { desc = "Show references" })
 -- ============================================================================
 -- YANK/PASTE
 -- ============================================================================
