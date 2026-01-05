@@ -2,6 +2,8 @@ vim.lsp.enable({
     "bashls",
     "gopls",
     "lua_ls",
-    "phpactor",
+    -- "phpactor",
+    "ts_ls",
+    "intelephense",
 })
 vim.diagnostic.config({ virtual_text = true })
