@@ -17,6 +17,14 @@ keymap("n", "<leader>q", "<cmd>qa!<CR>", { desc = "Quit Neovim" })
 keymap("n", "<leader>cd", '<cmd>lua vim.fn.chdir(vim.fn.expand("%:p:h"))<CR>',
     { desc = "Change directory to current file" })
 
+-- Copy file path to clipboard
+keymap("n", "<leader>yf", function()
+    local path = vim.fn.expand("%:.")
+    vim.fn.setreg("+", path)
+    vim.fn.setreg('"', path)
+    vim.notify("Copied: " .. path, vim.log.levels.INFO)
+end, { desc = "Copy file path to clipboard" })
+
 -- ============================================================================
 -- NAVIGATION
 -- ============================================================================
