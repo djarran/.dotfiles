@@ -25,6 +25,15 @@ keymap("n", "<leader>yf", function()
     vim.notify("Copied: " .. path, vim.log.levels.INFO)
 end, { desc = "Copy file path to clipboard" })
 
+-- Grep search for current filename
+keymap("n", "<leader>fn", function()
+    local filename = vim.fn.expand("%:t")
+    local Snacks = require("snacks")
+    Snacks.picker.pick("grep", {
+        search = filename,
+    })
+end, { desc = "Search for current filename" })
+
 -- ============================================================================
 -- NAVIGATION
 -- ============================================================================
