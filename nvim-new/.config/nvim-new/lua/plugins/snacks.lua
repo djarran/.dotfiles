@@ -17,6 +17,7 @@ wk.add({
     { "<leader>fW", function() require("snacks").picker.grep_buffers() end, desc = "Words in buffers" },
     { "<leader>fl", function() require("snacks").picker.lines() end,        desc = "Lines in buffer" },
     { "<leader>fs", function() require("snacks").picker.grep_word() end,    desc = "Selected word" },
+    { "<leader>fs", function() require("snacks").picker.grep_word() end,    desc = "Grep selected text", mode = "v" },
     { "<leader>fc", function() require("snacks").picker.commands() end, desc = "Commands" },
     { "<leader>f-", function() require("snacks").explorer() end,            desc = "Explorer" },
 
