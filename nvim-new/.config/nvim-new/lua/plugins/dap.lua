@@ -8,6 +8,11 @@ vim.pack.add({
         src = "https://github.com/leoluz/nvim-dap-go",
     }
 })
+vim.pack.add({
+    {
+        src = "https://github.com/mfussenegger/nvim-dap-python",
+    }
+})
 
 local dap = require("dap")
 vim.fn.sign_define("DapBreakpoint", { text = "", texthl = "DiagnosticSignError", linehl = "", numhl = "" })
@@ -44,6 +49,34 @@ require("dap-go").setup {
         },
     },
 }
+
+-- Python adapter setup
+local ok_dap_py, dap_python = pcall(require, "dap-python")
+if ok_dap_py then
+    dap_python.setup("python3")
+
+    dap.configurations.python = {
+        {
+            type = "python",
+            request = "launch",
+            name = "Launch file",
+            program = "${file}",
+            console = "integratedTerminal",
+            justMyCode = true,
+            cwd = "${workspaceFolder}",
+        },
+        {
+            type = "python",
+            request = "launch",
+            name = "Pytest current file",
+            module = "pytest",
+            args = { "-q", "${file}" },
+            console = "integratedTerminal",
+            justMyCode = true,
+            cwd = "${workspaceFolder}",
+        },
+    }
+end
 local wk = require("which-key")
 wk.add({
     { "<leader>d", group = "debug" },
@@ -241,6 +274,14 @@ end
 -- autocommand: run for PHP files (adjust pattern/fts as needed)
 vim.api.nvim_create_autocmd({ "BufEnter", "BufReadPost" }, {
     pattern = "*.php",
+    callback = function()
+        M.try_load_launchjs_for_buf()
+    end,
+})
+
+-- autocommand: run for Python files
+vim.api.nvim_create_autocmd({ "BufEnter", "BufReadPost" }, {
+    pattern = "*.py",
     callback = function()
         M.try_load_launchjs_for_buf()
     end,
