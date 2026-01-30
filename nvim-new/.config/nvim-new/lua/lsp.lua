@@ -4,7 +4,8 @@ vim.lsp.enable({
     "lua_ls",
     "pyright",
     -- "phpactor",
-    "ts_ls",
+    -- "ts_ls",
     "intelephense",
+    "vtsls"
 })
 vim.diagnostic.config({ virtual_text = true })
