@@ -65,6 +65,7 @@ keymap("n", "<leader>gd", "<cmd>lua vim.lsp.buf.definition()<CR>",
 keymap("n", "<leader>fm", "<cmd>lua vim.lsp.buf.format({ async = true })<CR>",
     vim.tbl_extend("force", opts, { desc = "Format buffer" }))
 keymap("n", "gr", vim.lsp.buf.references, { desc = "Show references" })
+keymap("n", "ca", vim.lsp.buf.code_action, { desc = "LSP Code Action" })
 -- ============================================================================
 -- YANK/PASTE
 -- ============================================================================
