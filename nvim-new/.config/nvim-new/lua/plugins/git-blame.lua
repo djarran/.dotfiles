@@ -4,6 +4,9 @@ vim.pack.add({
     }
 })
 
+-- Disable automatic git blame display
+vim.g.gitblame_enabled = 0
+
 -- ["<leader>gO"] = { "<cmd>GitBlameOpenCommitURL<cr>", "Open Commit Url", opts = { silent = true } },
 -- ["<leader>gc"] = { "<cmd>GitBlameCopyCommitURL<cr>", "Copy Commit Url", opts = { silent = true } },
 -- ["<leader>gf"] = { "<cmd>GitBlameOpenFileURL<cr>", "Open File Url", opts = { silent = true } },
