@@ -8,4 +8,3 @@ vim.lsp.enable({
     "intelephense",
     "vtsls"
 })
-vim.diagnostic.config({ virtual_text = true })
