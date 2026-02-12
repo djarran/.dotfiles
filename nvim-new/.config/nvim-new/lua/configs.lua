@@ -2,6 +2,7 @@ local opt = vim.opt
 opt.guicursor = "i:block" -- Use block cursor in insert mode
 opt.signcolumn = "yes:1" -- Always show sign column
 opt.termguicolors = true -- Enable true colors
+opt.cursorline = true
 opt.ignorecase = true -- Ignore case in search
 opt.swapfile = false -- Disable swap files
 opt.autoindent = true -- Enable auto indentation
