@@ -96,6 +96,10 @@
     group = group,
     desc = "Activate statusline on focus",
     callback = function()
+      -- Don't override statusline for special buffers
+      if vim.bo.buftype ~= "" or vim.bo.filetype == "oil" then
+        return
+      end
       vim.opt_local.statusline = "%!v:lua.Statusline.active()"
     end,
   })
@@ -104,6 +108,10 @@
     group = group,
     desc = "Deactivate statusline when unfocused",
     callback = function()
+      -- Don't override statusline for special buffers
+      if vim.bo.buftype ~= "" or vim.bo.filetype == "oil" then
+        return
+      end
       vim.opt_local.statusline = "%!v:lua.Statusline.inactive()"
     end,
   })
