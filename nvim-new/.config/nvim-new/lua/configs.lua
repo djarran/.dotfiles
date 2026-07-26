@@ -25,9 +25,7 @@ opt.winborder = "rounded" -- Use rounded borders for windows
 opt.hlsearch = false -- Disable highlighting of search results
 
 vim.cmd.filetype("plugin indent on") -- Enable filetype detection, plugins, and indentation
--- vim.cmd.colorscheme("gruvbox")
-vim.cmd.colorscheme("kanagawa-wave")
--- vim.o.background = "light"
+vim.cmd.colorscheme("kanagawa")
 
 vim.o.foldenable = true
 vim.o.foldlevel = 99
@@ -36,6 +34,7 @@ vim.o.foldexpr = 'v:lua.vim.treesitter.foldexpr()'
 vim.o.foldtext = ''
 vim.opt.foldcolumn = '0'
 vim.opt.fillchars:append { fold = ' ' }
+opt.clipboard = "unnamedplus"
 
 vim.opt.guicursor = {
   -- "n-v-c:block-Cursor/lCursor",         -- Block cursor in normal, visual, and command modes
