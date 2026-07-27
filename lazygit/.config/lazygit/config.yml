@@ -1,7 +1,7 @@
 git:
-  paging:
-    colorArg: always
-    pager: delta --dark --paging=never
+  pagers:
+    - colorArg: always
+      pager: delta --dark --paging=never
   autoFetch: false
-  autoRefresh: true  # Keep this true to refresh local state
-  fetchAll: false    # Don't fetch all remotes
+  autoRefresh: true # Keep this true to refresh local state
+  fetchAll: false # Don't fetch all remotes
