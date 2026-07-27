@@ -6,5 +6,7 @@ vim.lsp.enable({
     -- "phpactor",
     -- "ts_ls",
     "intelephense",
-    "vtsls"
+    "vtsls",
+    "oxlint",
+    "oxfmt"
 })

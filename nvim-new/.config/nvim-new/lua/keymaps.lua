@@ -13,6 +13,8 @@ keymap("n", "<space>", "<Nop>", { desc = "Disable space key" })
 -- Quit Neovim
 keymap("n", "<leader>q", "<cmd>qa!<CR>", { desc = "Quit Neovim" })
 
+keymap("v", "<Leader>yt", ":w !tmux load-buffer -<CR><CR>", { desc = "Yank selection to tmux buffer" })
+
 -- Change directory
 keymap("n", "<leader>cd", '<cmd>lua vim.fn.chdir(vim.fn.expand("%:p:h"))<CR>',
     { desc = "Change directory to current file" })
@@ -62,7 +64,48 @@ keymap("n", "<Leader>l", "<cmd>vsplit<CR><C-w>w", vim.tbl_extend("force", s, { d
 local opts = { noremap = true, silent = true }
 keymap("n", "<leader>gd", "<cmd>lua vim.lsp.buf.definition()<CR>",
     vim.tbl_extend("force", opts, { desc = "Go to definition" }))
-keymap("n", "<leader>fm", "<cmd>lua vim.lsp.buf.format({ async = true })<CR>",
+keymap("n", "<leader>fm", function()
+    local bufnr = vim.api.nvim_get_current_buf()
+    local ft = vim.bo[bufnr].filetype
+    local prefer_oxfmt = {
+        javascript = true,
+        javascriptreact = true,
+        typescript = true,
+        typescriptreact = true,
+        toml = true,
+        json = true,
+        jsonc = true,
+        json5 = true,
+        yaml = true,
+        html = true,
+        vue = true,
+        handlebars = true,
+        css = true,
+        scss = true,
+        less = true,
+        graphql = true,
+        markdown = true,
+    }
+
+    local format_opts = { async = true }
+    if prefer_oxfmt[ft] then
+        local has_oxfmt = false
+        for _, client in ipairs(vim.lsp.get_clients({ bufnr = bufnr })) do
+            if client.name == "oxfmt" then
+                has_oxfmt = true
+                break
+            end
+        end
+
+        if has_oxfmt then
+            format_opts.filter = function(client)
+                return client.name == "oxfmt"
+            end
+        end
+    end
+
+    vim.lsp.buf.format(format_opts)
+end,
     vim.tbl_extend("force", opts, { desc = "Format buffer" }))
 keymap("n", "gr", vim.lsp.buf.references, { desc = "Show references" })
 keymap("n", "ca", vim.lsp.buf.code_action, { desc = "LSP Code Action" })
