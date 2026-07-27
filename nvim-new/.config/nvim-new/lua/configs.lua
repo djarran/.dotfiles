@@ -15,7 +15,7 @@ opt.listchars = "tab: ,multispace:|   ,eol:󰌑" -- Characters to show for ta
 opt.number = true -- Show line numbers
 opt.relativenumber = true -- Show relative line numbers
 opt.numberwidth = 2 -- Width of the line number column
-opt.wrap = false -- Disable line wrapping
+opt.wrap = true -- Disable line wrapping
 opt.scrolloff = 8 -- Keep 8 lines above and below the cursor
 opt.inccommand = "nosplit" -- Shows the effects of a command incrementally in the buffer
 opt.undodir = os.getenv('HOME') .. '/.vim/undodir' -- Directory for undo files
@@ -25,7 +25,9 @@ opt.winborder = "rounded" -- Use rounded borders for windows
 opt.hlsearch = false -- Disable highlighting of search results
 
 vim.cmd.filetype("plugin indent on") -- Enable filetype detection, plugins, and indentation
+-- vim.cmd.colorscheme("gruvbox")
 vim.cmd.colorscheme("kanagawa-wave")
+-- vim.o.background = "light"
 
 vim.o.foldenable = true
 vim.o.foldlevel = 99
