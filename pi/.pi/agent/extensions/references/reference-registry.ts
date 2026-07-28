@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -79,6 +79,15 @@ export interface ReferenceMention {
 
 const ALIAS_PATTERN = /^[A-Za-z0-9._-]+$/;
 const MENTION_PATTERN = /(^|[\s([{"'])@([A-Za-z0-9._-]+)(\/[^\s,;:!?)}\]"']*)?/g;
+const CACHE_LOCK_STALE_MS = 10 * 60_000;
+const CACHE_LOCK_WAIT_MS = 30_000;
+const CACHE_LOCK_OWNER_FILE = "owner.json";
+
+interface CacheLockOwner {
+	pid: number;
+	token: string;
+	acquiredAt: number;
+}
 
 export function isValidReferenceAlias(name: string): boolean {
 	return ALIAS_PATTERN.test(name);
@@ -199,6 +208,15 @@ async function localAvailability(path: string): Promise<{ available: boolean; er
 	}
 }
 
+async function gitCacheAvailability(path: string): Promise<{ available: boolean; error?: string }> {
+	try {
+		await access(join(path, ".git"));
+		return { available: true };
+	} catch {
+		return { available: false, error: "cache is not materialized; run /reference refresh" };
+	}
+}
+
 export async function loadReferences(
 	locations: ConfigLocation[],
 	agentDir: string,
@@ -250,6 +268,7 @@ export async function loadReferences(
 				continue;
 			}
 			const path = gitReferenceCachePath(agentDir, entry.repository, entry.branch);
+			const availability = await gitCacheAvailability(path);
 			merged.set(name, {
 				type: "git",
 				name,
@@ -261,7 +280,7 @@ export async function loadReferences(
 				readOnly: entry.readOnly ?? true,
 				scope: location.scope,
 				configPath: location.path,
-				available: false,
+				...availability,
 			});
 		}
 	}
@@ -287,16 +306,84 @@ async function wait(ms: number, signal?: AbortSignal): Promise<void> {
 	});
 }
 
+function isCacheLockOwner(value: unknown): value is CacheLockOwner {
+	return (
+		isRecord(value) &&
+		typeof value.pid === "number" &&
+		typeof value.token === "string" &&
+		typeof value.acquiredAt === "number"
+	);
+}
+
+function isProcessRunning(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return !isNodeError(error) || error.code !== "ESRCH";
+	}
+}
+
+async function isCacheLockStale(lockPath: string): Promise<boolean> {
+	try {
+		const owner = JSON.parse(await readFile(join(lockPath, CACHE_LOCK_OWNER_FILE), "utf8"));
+		if (isCacheLockOwner(owner)) {
+			return !isProcessRunning(owner.pid) || Date.now() - owner.acquiredAt >= CACHE_LOCK_STALE_MS;
+		}
+	} catch (error) {
+		if (isNodeError(error) && error.code !== "ENOENT") return false;
+	}
+
+	try {
+		const info = await stat(lockPath);
+		return Date.now() - info.mtimeMs >= CACHE_LOCK_STALE_MS;
+	} catch (error) {
+		if (isNodeError(error) && error.code === "ENOENT") return false;
+		throw error;
+	}
+}
+
+async function reclaimCacheLock(lockPath: string, token: string): Promise<void> {
+	const stalePath = `${lockPath}.stale-${token}`;
+	try {
+		await rename(lockPath, stalePath);
+	} catch (error) {
+		if (isNodeError(error) && error.code === "ENOENT") return;
+		throw error;
+	}
+	await rm(stalePath, { recursive: true, force: true });
+}
+
 async function acquireCacheLock(path: string, signal?: AbortSignal): Promise<() => Promise<void>> {
 	const lockPath = `${path}.lock`;
 	await mkdir(dirname(lockPath), { recursive: true });
-	const deadline = Date.now() + 30_000;
+	const deadline = Date.now() + CACHE_LOCK_WAIT_MS;
+	const owner: CacheLockOwner = { pid: process.pid, token: randomUUID(), acquiredAt: Date.now() };
 	while (true) {
 		try {
 			await mkdir(lockPath);
-			return () => rm(lockPath, { recursive: true, force: true });
+			try {
+				await writeFile(join(lockPath, CACHE_LOCK_OWNER_FILE), JSON.stringify(owner), "utf8");
+			} catch (error) {
+				await rm(lockPath, { recursive: true, force: true });
+				throw error;
+			}
+			return async () => {
+				try {
+					const current = JSON.parse(await readFile(join(lockPath, CACHE_LOCK_OWNER_FILE), "utf8"));
+					if (isCacheLockOwner(current) && current.token === owner.token) {
+						await rm(lockPath, { recursive: true, force: true });
+					}
+				} catch (error) {
+					if (!isNodeError(error) || error.code !== "ENOENT") throw error;
+				}
+			};
 		} catch (error) {
 			if (!isNodeError(error) || error.code !== "EEXIST") throw error;
+			if (await isCacheLockStale(lockPath)) {
+				await reclaimCacheLock(lockPath, owner.token);
+				continue;
+			}
 			if (Date.now() >= deadline) throw new Error(`timed out waiting for reference cache lock: ${lockPath}`);
 			await wait(100, signal);
 		}

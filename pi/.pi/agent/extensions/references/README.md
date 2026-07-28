@@ -85,6 +85,6 @@ String shorthand creates a read-only local reference:
 }
 ```
 
-Git repositories are cached under `~/.pi/agent/references/git/` (or the configured Pi agent directory). Missing repositories are cloned; existing checkouts are fetched and reset to the configured remote branch during refresh.
+Git repositories are cached under `~/.pi/agent/references/git/` (or the configured Pi agent directory). Pi uses an existing cache without network access during startup. `/reference refresh` clones missing repositories or fetches and resets existing checkouts to the configured remote branch.
 
 Aliases may contain letters, numbers, dots, underscores, and hyphens.
