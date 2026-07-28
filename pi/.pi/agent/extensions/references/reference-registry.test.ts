@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
 	findReferenceMentions,
 	gitReferenceCachePath,
@@ -10,11 +11,13 @@ import {
 	isValidGitBranch,
 	isValidReferenceAlias,
 	loadReferences,
+	materializeGitReference,
 	parseReferencesConfig,
 	readReferencesConfig,
 	renderReferenceGuidance,
 	resolvePathInsideReference,
 	writeReferenceEntry,
+	type GitReference,
 	type LocalReference,
 } from "./reference-registry.ts";
 
@@ -140,4 +143,46 @@ test("uses stable, branch-specific Git cache paths", () => {
 	assert.equal(first, gitReferenceCachePath("/tmp/agent", "https://github.com/acme/docs.git", "main"));
 	assert.notEqual(first, gitReferenceCachePath("/tmp/agent", "https://github.com/acme/docs.git", "next"));
 	assert.equal(resolve(first).startsWith("/tmp/agent/references/git/"), true);
+});
+
+test("reports an existing Git cache as available without fetching", async (context) => {
+	const root = await mkdtemp(join(tmpdir(), "pi-references-cache-"));
+	context.after(() => rm(root, { recursive: true, force: true }));
+	const agentDir = join(root, "agent");
+	const configPath = join(agentDir, "references.json");
+	const repository = "https://github.com/acme/docs.git";
+	await mkdir(gitReferenceCachePath(agentDir, repository), { recursive: true });
+	await mkdir(join(gitReferenceCachePath(agentDir, repository), ".git"));
+	await writeFile(configPath, JSON.stringify({ references: { docs: { repository } } }));
+
+	const loaded = await loadReferences([{ scope: "global", path: configPath, trusted: true }], agentDir);
+	assert.equal(loaded.references[0]?.available, true);
+});
+
+test("reclaims a stale legacy Git cache lock", async (context) => {
+	const root = await mkdtemp(join(tmpdir(), "pi-references-lock-"));
+	context.after(() => rm(root, { recursive: true, force: true }));
+	const path = join(root, "cache");
+	const lockPath = `${path}.lock`;
+	await mkdir(lockPath);
+	const staleTime = new Date(Date.now() - 11 * 60_000);
+	await utimes(lockPath, staleTime, staleTime);
+	const reference: GitReference = {
+		type: "git",
+		name: "docs",
+		path,
+		repository: "https://github.com/acme/docs.git",
+		hidden: false,
+		readOnly: true,
+		scope: "global",
+		configPath: join(root, "references.json"),
+		available: false,
+	};
+	const pi = {
+		exec: async () => ({ code: 0, stdout: "", stderr: "" }),
+	} as unknown as ExtensionAPI;
+
+	const result = await materializeGitReference(pi, reference);
+	assert.equal(result.available, true);
+	await assert.rejects(readFile(lockPath), { code: "ENOENT" });
 });

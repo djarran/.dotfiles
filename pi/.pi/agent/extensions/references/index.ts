@@ -223,12 +223,18 @@ export default function referencesExtension(pi: ExtensionAPI): void {
 	let references: ResolvedReference[] = [];
 	let lastContext: ExtensionContext | undefined;
 
-	const refresh = async (ctx: ExtensionContext, onlyName?: string): Promise<void> => {
+	const refresh = async (ctx: ExtensionContext, onlyName?: string, updateGit = true): Promise<void> => {
 		lastContext = ctx;
 		const loaded = await loadReferences(configLocations(ctx), getAgentDir());
 		const next = await Promise.all(
 			loaded.references.map(async (reference) => {
-				if (reference.type !== "git" || (onlyName !== undefined && reference.name !== onlyName)) return reference;
+				if (
+					!updateGit ||
+					reference.type !== "git" ||
+					(onlyName !== undefined && reference.name !== onlyName)
+				) {
+					return reference;
+				}
 				return materializeGitReference(pi, reference, ctx.signal);
 			}),
 		);
@@ -249,7 +255,7 @@ export default function referencesExtension(pi: ExtensionAPI): void {
 	};
 
 	pi.on("session_start", async (_event, ctx) => {
-		await refresh(ctx);
+		await refresh(ctx, undefined, false);
 		if (ctx.mode === "tui") {
 			ctx.ui.addAutocompleteProvider((current) => createReferenceAutocompleteProvider(current, () => references));
 		}
@@ -325,7 +331,7 @@ export default function referencesExtension(pi: ExtensionAPI): void {
 				return;
 			}
 			if (action === "remove") {
-				await removeReference(ctx, value, references, () => refresh(ctx));
+				await removeReference(ctx, value, references, () => refresh(ctx, undefined, false));
 				return;
 			}
 			if (action === "refresh") {
