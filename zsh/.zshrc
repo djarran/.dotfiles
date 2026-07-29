@@ -52,6 +52,8 @@ ZVM_VI_EDITOR=nvim
 # Exa (ls alternative): https://the.exa.website/
 alias ls='eza'
 alias lz='lazygit'
+alias vv='NVIM_APPNAME=nvim-new nvim'
+
 
 export PATH="$PATH:/Applications/Docker.app/Contents/Resources/bin/"
 
@@ -74,3 +76,17 @@ export PATH="$PATH:$HOME/.rvm/bin"
 
 . "$HOME/.atuin/bin/env"
 eval "$(atuin init zsh)"
+export PATH="$HOME/.local/share/bob/nvim-bin:$PATH"
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/djarran/.lmstudio/bin"
+# End of LM Studio CLI section
+
+
+# Vite+ bin (https://viteplus.dev)
+. "$HOME/.vite-plus/env"
+
+. "$HOME/.local/bin/env"
+
+# Pi
+export PATH="/Users/djarran/.vite-plus/js_runtime/node/24.18.0/bin:$PATH"
