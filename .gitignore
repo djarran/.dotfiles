@@ -1,2 +1,11 @@
 antigen.zsh
 node_modules/
+
+# Pi
+references.json
+trust.json
+models-store.json
+auth.json
+pi/.pi/agent/sessions
+pi/.pi/agent/references
+pi/.pi/agent/npm
