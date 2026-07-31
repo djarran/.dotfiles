@@ -10,7 +10,7 @@
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { Data } from "effect";
 
-export const BACKEND_NAMES = ["pi", "claude", "codex"] as const;
+export const BACKEND_NAMES = ["pi", "claude", "codex", "copilot"] as const;
 export type BackendName = (typeof BACKEND_NAMES)[number];
 
 /** Who initiated the session. User asides stay out of model-facing tooling. */
@@ -18,9 +18,9 @@ export type SubagentOrigin = "model" | "btw";
 
 /**
  * Shared reasoning-effort scale (pi's thinking levels). Each backend maps a
- * value to its nearest native equivalent: pi uses it directly, codex
- * translates to its reasoning-effort slugs, claude translates to thinking
- * budgets. Omitted = backend default (pi inherits the parent level).
+ * value to its nearest native equivalent: pi uses it directly, codex and
+ * Copilot translate to reasoning-effort slugs, and Claude translates to
+ * thinking budgets. Omitted = backend default (pi inherits the parent level).
  */
 export const REASONING_EFFORTS = [
   "off",
@@ -55,7 +55,7 @@ export interface SpawnTask {
   /**
    * Generic model hint, interpreted per backend:
    * pi: "provider/model-id" or bare model id; claude: model alias;
-   * codex: model slug. Omitted = backend default / inherit.
+   * codex/copilot: model slug. Omitted = backend default / inherit.
    */
   readonly model?: string;
   /** Shared effort scale; each backend maps it to its native equivalent. */
@@ -74,13 +74,13 @@ export interface SubagentMeta {
   readonly modelLabel?: string;
   /** Context window capacity for utilization display, when known. */
   readonly contextWindow?: number;
-  /** pi session file / Claude projects JSONL / Codex rollout path. */
+  /** pi session file / Claude JSONL / Codex rollout / Copilot state path. */
   readonly sessionFilePath?: string;
-  /** Claude session id / Codex conversation id. */
+  /** Claude/Copilot session id or Codex conversation id. */
   readonly nativeSessionId?: string;
   /** Backend-native branch cursor (pi leaf id / Claude message uuid). */
   readonly nativeCursor?: string;
-  /** Number of completed Codex turns at this checkpoint. */
+  /** Number of completed Codex/Copilot turns at this checkpoint. */
   readonly nativeTurnCount?: number;
 }
 

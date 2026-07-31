@@ -114,7 +114,8 @@ function parseState(value: unknown): PersistedSubagentState | undefined {
     typeof snapshot.id !== "string" ||
     (snapshot.backend !== "pi" &&
       snapshot.backend !== "claude" &&
-      snapshot.backend !== "codex") ||
+      snapshot.backend !== "codex" &&
+      snapshot.backend !== "copilot") ||
     (snapshot.origin !== "model" && snapshot.origin !== "btw") ||
     typeof snapshot.title !== "string" ||
     typeof snapshot.prompt !== "string" ||

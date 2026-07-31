@@ -46,6 +46,29 @@ test("persistence reduces the active branch to the latest checkpoint", () => {
   assert.equal(states.get("sa-7")?.options.model, "sonnet");
 });
 
+test("persistence accepts Copilot backend checkpoints", () => {
+  const base = snapshot("done");
+  const copilot: SubagentSnapshot = {
+    ...base,
+    backend: "copilot",
+    meta: {
+      backend: "copilot",
+      nativeSessionId: "copilot-session-1",
+      nativeTurnCount: 3,
+      sessionFilePath: "/tmp/copilot-session",
+    },
+  };
+  const states = readPersistedStates([
+    custom(createPersistedState(copilot, {}, "pending")),
+  ]);
+  assert.equal(states.get("sa-7")?.snapshot.backend, "copilot");
+  assert.equal(
+    states.get("sa-7")?.snapshot.meta.nativeSessionId,
+    "copilot-session-1",
+  );
+  assert.equal(states.get("sa-7")?.snapshot.meta.nativeTurnCount, 3);
+});
+
 test("delivery evidence repairs a checkpoint written before result delivery", () => {
   const evidence = readDeliveredIds([
     {
