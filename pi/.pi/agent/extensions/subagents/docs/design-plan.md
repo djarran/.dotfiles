@@ -562,7 +562,9 @@ Recommendation: (a) during development, rename to final names when v2 replaces v
    total, 16KB per agent, 2KB check preview) unchanged?
 9. **Effect version pinning.** Effect v4 is beta — pin an exact `4.0.0-beta.x` and
    accept manual bumps, or track the beta dist-tag?
-10. **Persistence across reloads.** v1 loses all subagents on `session_shutdown`
-    (disposeAll). Codex/Claude children are external processes that *could* outlive a
-    pi reload — should v2 keep v1's kill-everything behavior (proposed for v1 of v2) or
-    plan for reattach later?
+10. **Persistence across reloads.** Implemented with versioned `subagent-state-v1`
+    custom entries on the active parent branch. Settled snapshots and delivery state
+    are restored on resume/reload/tree navigation, and native conversations reopen
+    lazily on the next takeover message (pi `SessionManager.open`, Claude `resume`,
+    Codex `thread/resume`). Active runs are still interrupted during shutdown and
+    restored as errors; preserving an in-flight turn remains future supervisor work.

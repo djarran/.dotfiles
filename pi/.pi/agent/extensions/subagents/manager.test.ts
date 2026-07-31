@@ -262,6 +262,48 @@ test("idle restarts respect the concurrency cap", async () => {
   });
 });
 
+test("restored subagents keep ids and lazily resume on send", async () => {
+  const firstRuntime = createTestRuntime();
+  let restoredSnapshot;
+  try {
+    const first = await firstRuntime.runPromise(SubagentManager);
+    const spawned = await runTool(
+      firstRuntime,
+      first.spawn("claude", task("first persisted turn")),
+    );
+    await runTool(firstRuntime, first.waitFor([spawned.id]));
+    restoredSnapshot = first.view.get(spawned.id);
+    assert.ok(restoredSnapshot);
+  } finally {
+    await firstRuntime.dispose();
+  }
+
+  const secondRuntime = createTestRuntime();
+  try {
+    const second = await secondRuntime.runPromise(SubagentManager);
+    await runTool(
+      secondRuntime,
+      second.restore([{ snapshot: restoredSnapshot, task: task("first persisted turn") }]),
+    );
+    assert.equal(second.view.get("sa-1")?.status, "done");
+
+    await runTool(secondRuntime, second.send("sa-1", "continued after resume"));
+    await runTool(secondRuntime, second.waitFor(["sa-1"]));
+    assert.match(
+      second.view.get("sa-1")?.finalText ?? "",
+      /continued after resume/,
+    );
+
+    const next = await runTool(
+      secondRuntime,
+      second.spawn("codex", task("new after restore")),
+    );
+    assert.equal(next.id, "sa-2");
+  } finally {
+    await secondRuntime.dispose();
+  }
+});
+
 test("send steers an idle subagent into another turn", async () => {
   await withManager(async (manager, runtime) => {
     const snap = await runTool(

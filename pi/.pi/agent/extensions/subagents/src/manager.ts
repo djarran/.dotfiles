@@ -26,6 +26,7 @@ import { BackendRegistry } from "./backend.ts";
 import type {
   BackendName,
   LiveToolState,
+  RestoredSubagent,
   RunOutcome,
   SpawnTask,
   SubagentEvent,
@@ -97,8 +98,9 @@ interface MutableSnapshot {
 
 interface Entry {
   snapshot: MutableSnapshot;
-  session: SubagentSession;
-  scope: Scope.Closeable;
+  task: SpawnTask;
+  session?: SubagentSession;
+  scope?: Scope.Closeable;
   pump?: Fiber.Fiber<void>;
   liveToolMap: Map<string, LiveToolState>;
   /** Idle restart dispatched but RunStarted not folded yet; counts as running
@@ -163,6 +165,8 @@ export interface SubagentManagerShape {
     ids: ReadonlyArray<string>,
   ): Effect.Effect<ReadonlyArray<CancelResult>>;
   send(id: string, text: string): Effect.Effect<void, SendError>;
+  /** Restore dormant snapshots from the active parent-session branch. */
+  restore(records: ReadonlyArray<RestoredSubagent>): Effect.Effect<void>;
   get(id: string): Effect.Effect<SubagentSnapshot | undefined>;
   readonly list: Effect.Effect<ReadonlyArray<SubagentSnapshot>>;
   readonly disposeAll: Effect.Effect<void>;
@@ -246,7 +250,9 @@ const makeManager = Effect.gen(function* () {
   };
 
   const closeEntryScope = (entry: Entry) =>
-    Scope.close(entry.scope, Exit.void).pipe(Effect.ignore);
+    entry.scope
+      ? Scope.close(entry.scope, Exit.void).pipe(Effect.ignore)
+      : Effect.void;
 
   const pruneSettled = () => {
     if (entries.size <= MAX_TRACKED) return;
@@ -321,6 +327,7 @@ const makeManager = Effect.gen(function* () {
         s.status = "running";
         s.settledAt = undefined;
         s.errorText = undefined;
+        s.finalText = "";
         break;
       case "RunSettled":
         settle(entry, event.outcome);
@@ -421,6 +428,37 @@ const makeManager = Effect.gen(function* () {
     notify(s.id);
   };
 
+  const startPump = (entry: Entry, scope: Scope.Closeable) => {
+    const session = entry.session;
+    if (!session) return Effect.void;
+    const pump = Stream.runForEach(session.events, (event) =>
+      Effect.sync(() => foldEvent(entry, event)),
+    ).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          if (entry.snapshot.status === "running") {
+            settle(entry, {
+              _tag: "Failed",
+              errorText: "Backend event stream ended unexpectedly",
+            });
+          } else if (!disposed) {
+            // A resumed backend can die while idle. Drop the dead handle so a
+            // later send lazily opens the persisted conversation again.
+            entry.session = undefined;
+          }
+        }),
+      ),
+    );
+    return Scope.provide(Effect.forkScoped(pump), scope).pipe(
+      Effect.tap((fiber) =>
+        Effect.sync(() => {
+          entry.pump = fiber;
+        }),
+      ),
+      Effect.asVoid,
+    );
+  };
+
   const spawn = (backendName: BackendName, task: SpawnTask) =>
     Effect.gen(function* () {
       // Reserve synchronously (before the first yield inside doSpawn) so
@@ -477,6 +515,7 @@ const makeManager = Effect.gen(function* () {
           origin === "btw" ? `btw-${++btwCounter}` : `sa-${++modelCounter}`;
         const meta = yield* session.meta;
         const entry: Entry = {
+          task,
           snapshot: {
             id,
             origin,
@@ -500,24 +539,9 @@ const makeManager = Effect.gen(function* () {
         };
         entries.set(id, entry);
 
-        // Pump: fold the event stream into the snapshot. Tied to the entry
-        // scope, so closing the scope stops it. If the stream ends while the
-        // subagent still looks running, the backend died out from under us.
-        const pump = Stream.runForEach(session.events, (event) =>
-          Effect.sync(() => foldEvent(entry, event)),
-        ).pipe(
-          Effect.ensuring(
-            Effect.sync(() => {
-              if (entry.snapshot.status === "running") {
-                settle(entry, {
-                  _tag: "Failed",
-                  errorText: "Backend event stream ended unexpectedly",
-                });
-              }
-            }),
-          ),
-        );
-        entry.pump = yield* Scope.provide(Effect.forkScoped(pump), scope);
+        // Fold the backend stream into the snapshot. The pump is tied to the
+        // entry scope so shutdown also terminates event consumption.
+        yield* startPump(entry, scope);
 
         notify(id);
         return entry.snapshot as SubagentSnapshot;
@@ -542,9 +566,12 @@ const makeManager = Effect.gen(function* () {
       addInterest(unique);
       const loop = Effect.gen(function* () {
         while (true) {
-          const pending = unique.filter(
-            (id) => entries.get(id)?.snapshot.status === "running",
-          );
+          const pending = unique.filter((id) => {
+            const entry = entries.get(id);
+            return (
+              entry?.snapshot.status === "running" || entry?.restarting === true
+            );
+          });
           if (pending.length === 0) return;
           onPending?.(pending);
           yield* nextChange;
@@ -564,6 +591,15 @@ const makeManager = Effect.gen(function* () {
   const abortEntry = (entry: Entry) =>
     Effect.gen(function* () {
       if (entry.snapshot.status !== "running") return;
+      if (!entry.session) {
+        yield* Effect.sync(() =>
+          settle(entry, {
+            _tag: "Failed",
+            errorText: "Restored running session was no longer attached",
+          }),
+        );
+        return;
+      }
       const graceful = yield* entry.session.interrupt.pipe(
         Effect.timeout(STOP_TIMEOUT_MS),
         Effect.result,
@@ -629,11 +665,16 @@ const makeManager = Effect.gen(function* () {
     });
 
   const send = (id: string, text: string) =>
-    Effect.suspend((): Effect.Effect<void, SendError> => {
+    Effect.gen(function* () {
       const entry = entries.get(id);
       if (!entry || disposed) {
-        return new SendError({
+        return yield* new SendError({
           message: `Subagent "${id}" is no longer tracked.`,
+        });
+      }
+      if (entry.restarting && !entry.session) {
+        return yield* new SendError({
+          message: `Subagent "${id}" is already reopening.`,
         });
       }
       // Restarting a settled subagent occupies a running slot again, so it
@@ -641,24 +682,97 @@ const makeManager = Effect.gen(function* () {
       // does not consume additional capacity.
       if (entry.snapshot.status !== "running") {
         if (runningCount() + reserved >= MAX_RUNNING) {
-          return new SendError({
+          return yield* new SendError({
             message: `Max ${MAX_RUNNING} subagents can run concurrently; restarting "${id}" would exceed that.`,
           });
         }
-        // Occupy the slot synchronously: the RunStarted that flips status
-        // arrives via the async pump, and two concurrent restarts must not
-        // both pass the check in that window. Cleared by RunStarted/settle,
-        // or here when the backend rejects the send.
         entry.restarting = true;
-        return entry.session.send(text).pipe(
+      }
+
+      if (!entry.session) {
+        const backend = registry.get(entry.snapshot.backend);
+        if (!backend) {
+          entry.restarting = false;
+          return yield* new SendError({
+            message: `Backend "${entry.snapshot.backend}" is unavailable.`,
+          });
+        }
+        const available = yield* backend.available;
+        if (!available) {
+          entry.restarting = false;
+          return yield* new SendError({
+            message: `Backend "${entry.snapshot.backend}" is not available on this machine.`,
+          });
+        }
+        if (entry.scope) {
+          yield* closeEntryScope(entry);
+          entry.scope = undefined;
+        }
+        const scope = yield* Scope.make();
+        // Publish ownership before the interruptible backend acquisition so
+        // manager shutdown can always reach this scope.
+        entry.scope = scope;
+        const resumed = yield* Scope.provide(
+          backend.resume(entry.task, entry.snapshot.meta),
+          scope,
+        ).pipe(
+          Effect.mapError(
+            (error) => new SendError({ message: error.message }),
+          ),
           Effect.onError(() =>
-            Effect.sync(() => {
-              entry.restarting = false;
-            }),
+            Scope.close(scope, Exit.void).pipe(
+              Effect.andThen(
+                Effect.sync(() => {
+                  entry.restarting = false;
+                  if (entry.scope === scope) entry.scope = undefined;
+                }),
+              ),
+            ),
           ),
         );
+        entry.session = resumed;
+        entry.snapshot.meta = yield* resumed.meta;
+        yield* startPump(entry, scope);
       }
-      return entry.session.send(text);
+
+      const session = entry.session;
+      if (!session) {
+        entry.restarting = false;
+        return yield* new SendError({ message: `Failed to reopen "${id}".` });
+      }
+      yield* session.send(text).pipe(
+        Effect.onError(() =>
+          Effect.sync(() => {
+            entry.restarting = false;
+          }),
+        ),
+      );
+    });
+
+  const restore = (records: ReadonlyArray<RestoredSubagent>) =>
+    Effect.sync(() => {
+      if (disposed) return;
+      for (const record of records.slice(-MAX_TRACKED)) {
+        const snapshot: MutableSnapshot = {
+          ...record.snapshot,
+          meta: { ...record.snapshot.meta },
+          usage: { ...record.snapshot.usage },
+          transcript: [...record.snapshot.transcript],
+          liveAssistant: undefined,
+          liveTools: [],
+          queued: [],
+        };
+        entries.set(snapshot.id, {
+          snapshot,
+          task: record.task,
+          liveToolMap: new Map(),
+        });
+        const modelMatch = /^sa-(\d+)$/.exec(snapshot.id);
+        const btwMatch = /^btw-(\d+)$/.exec(snapshot.id);
+        if (modelMatch) modelCounter = Math.max(modelCounter, Number(modelMatch[1]));
+        if (btwMatch) btwCounter = Math.max(btwCounter, Number(btwMatch[1]));
+      }
+      notify();
     });
 
   const disposeAll = Effect.gen(function* () {
@@ -729,6 +843,7 @@ const makeManager = Effect.gen(function* () {
     waitFor,
     cancel,
     send,
+    restore,
     get: (id) => Effect.sync(() => entries.get(id)?.snapshot),
     list: Effect.sync(() => [...entries.values()].map((e) => e.snapshot)),
     disposeAll,

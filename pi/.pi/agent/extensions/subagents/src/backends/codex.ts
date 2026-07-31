@@ -303,6 +303,7 @@ function toolFailed(item: JsonRecord) {
 
 const makeCodexSession = (
   task: SpawnTask,
+  resumeMeta?: SubagentMeta,
 ): Effect.Effect<SubagentSession, SpawnError, Scope.Scope> =>
   Effect.gen(function* () {
     const binary = resolveCodexBinary();
@@ -319,7 +320,7 @@ const makeCodexSession = (
 
     const child = yield* Effect.try({
       try: () =>
-        spawn(binary, ["app-server", "--stdio"], {
+        spawn(binary, ["app-server"], {
           cwd: task.cwd,
           env: process.env,
           stdio: ["pipe", "pipe", "pipe"],
@@ -351,6 +352,7 @@ const makeCodexSession = (
       meta: {
         backend: "codex",
         modelLabel: task.model,
+        ...resumeMeta,
       } satisfies SubagentMeta as SubagentMeta,
       interruptTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
@@ -727,6 +729,14 @@ const makeCodexSession = (
         case "turn/completed": {
           const turn = record(params.turn);
           const status = stringValue(turn?.status);
+          state.meta = {
+            ...state.meta,
+            nativeTurnCount: (state.meta.nativeTurnCount ?? 0) + 1,
+          };
+          emit({
+            _tag: "MetaChanged",
+            meta: { nativeTurnCount: state.meta.nativeTurnCount },
+          });
           const error = record(turn?.error);
           const partialText =
             state.finalText || state.lastAssistantText || undefined;
@@ -889,6 +899,62 @@ const makeCodexSession = (
         // Headless children cannot answer approval prompts. The caller
         // already chose to launch an autonomous subagent, so give the thread
         // full workspace access without interactive approval requests.
+        if (resumeMeta?.nativeSessionId) {
+          const threadId = resumeMeta.nativeSessionId;
+          const readResult = await request("thread/read", {
+            threadId,
+            includeTurns: true,
+          });
+          const persistedThread = record(readResult.thread);
+          const currentTurnCount = Array.isArray(persistedThread?.turns)
+            ? persistedThread.turns.length
+            : undefined;
+          const checkpointTurnCount = resumeMeta.nativeTurnCount;
+          if (
+            checkpointTurnCount !== undefined &&
+            currentTurnCount !== undefined &&
+            currentTurnCount < checkpointTurnCount
+          ) {
+            throw new Error(
+              `Persisted Codex thread has ${currentTurnCount} turns, before checkpoint ${checkpointTurnCount}.`,
+            );
+          }
+          if (
+            checkpointTurnCount !== undefined &&
+            currentTurnCount !== undefined &&
+            currentTurnCount > checkpointTurnCount
+          ) {
+            // The parent resumed an older branch. Fork the native thread and
+            // roll the fork back to the persisted turn boundary so later
+            // child turns from the abandoned branch cannot leak into context.
+            const forkResult = await request("thread/fork", {
+              threadId,
+              cwd: task.cwd,
+              approvalPolicy: "never",
+              sandbox: "danger-full-access",
+              ephemeral: false,
+              ...(task.model ? { model: task.model } : {}),
+            });
+            const fork = record(forkResult.thread);
+            const forkId = stringValue(fork?.id);
+            if (!forkId) throw new Error("Codex thread/fork returned no thread id.");
+            const rollback = await request("thread/rollback", {
+              threadId: forkId,
+              numTurns: currentTurnCount - checkpointTurnCount,
+            });
+            return {
+              ...forkResult,
+              thread: record(rollback.thread) ?? fork,
+            };
+          }
+          return request("thread/resume", {
+            threadId,
+            cwd: task.cwd,
+            approvalPolicy: "never",
+            sandbox: "danger-full-access",
+            ...(task.model ? { model: task.model } : {}),
+          });
+        }
         return request("thread/start", {
           cwd: task.cwd,
           approvalPolicy: "never",
@@ -912,6 +978,7 @@ const makeCodexSession = (
       modelLabel: stringValue(threadResult.model) ?? task.model,
       sessionFilePath: stringValue(thread?.path),
       nativeSessionId,
+      nativeTurnCount: resumeMeta?.nativeTurnCount ?? 0,
     };
     if (task.reasoningEffort) {
       // Optional capability probe: never let a slow/unsupported model/list
@@ -927,7 +994,7 @@ const makeCodexSession = (
       );
     }
     emit({ _tag: "MetaChanged", meta: state.meta });
-    startRun(task.prompt);
+    if (!resumeMeta) startRun(task.prompt);
 
     return {
       meta: Effect.sync(() => state.meta),
@@ -1056,5 +1123,11 @@ export const codexBackend: SubagentBackend = {
     reasoningEffort: true,
   },
   available: Effect.sync(() => resolveCodexBinary() !== undefined),
-  spawn: makeCodexSession,
+  spawn: (task) => makeCodexSession(task),
+  resume: (task, meta) =>
+    meta.nativeSessionId
+      ? makeCodexSession(task, meta)
+      : Effect.fail(
+          new SpawnError({ message: "Persisted Codex session has no thread id." }),
+        ),
 };

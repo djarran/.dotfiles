@@ -46,6 +46,7 @@ import {
   formatElapsed,
   latestText,
   REASONING_EFFORTS,
+  type PersistedSpawnOptions,
   type SubagentSnapshot,
 } from "./src/domain.ts";
 import {
@@ -68,6 +69,14 @@ import {
   SUBAGENT_WAIT_PARAMETER_DESCRIPTIONS,
   SUBAGENT_WAIT_TOOL_DESCRIPTION,
 } from "./src/prompt.ts";
+import {
+  createPersistedState,
+  type DeliveryState,
+  readDeliveredIds,
+  readPersistedStates,
+  SUBAGENT_STATE_ENTRY,
+  toRestoredSubagent,
+} from "./src/persistence.ts";
 import { createDeferredResultDelivery } from "./src/result-delivery.ts";
 import {
   createSubagentRuntime,
@@ -84,6 +93,7 @@ interface BtwResultData {
   readonly id: string;
   readonly title: string;
   readonly status: SubagentSnapshot["status"];
+  readonly settledAt?: number;
   readonly errorText?: string;
   readonly prompt: string;
   readonly answer: string;
@@ -143,9 +153,37 @@ export default function (pi: ExtensionAPI) {
   let sessionContext: ExtensionContext | undefined;
   let ui: ExtensionUIContext | undefined;
   let unsubStatus: (() => void) | undefined;
+  let restoring = false;
   const resultDelivery = createDeferredResultDelivery<SubagentSnapshot>();
+  const spawnOptions = new Map<string, PersistedSpawnOptions>();
+  const deliveryStates = new Map<string, DeliveryState>();
+  const persistedFingerprints = new Map<string, string>();
 
   const getRuntime = () => (runtime ??= createSubagentRuntime());
+
+  const persistSnapshot = (snap: SubagentSnapshot, force = false) => {
+    if (!sessionContext || restoring) return;
+    const state = createPersistedState(
+      snap,
+      spawnOptions.get(snap.id) ?? {},
+      deliveryStates.get(snap.id) ?? "pending",
+    );
+    const fingerprint = JSON.stringify(state);
+    if (!force && persistedFingerprints.get(snap.id) === fingerprint) return;
+    persistedFingerprints.set(snap.id, fingerprint);
+    pi.appendEntry(SUBAGENT_STATE_ENTRY, state);
+  };
+
+  const persistManager = (manager: SubagentManagerShape) => {
+    updateStatus(manager);
+    if (restoring || !sessionContext) return;
+    for (const snap of manager.view.list()) {
+      if (snap.status === "running") deliveryStates.set(snap.id, "pending");
+      // Streaming deltas and live tool previews are intentionally absent from
+      // the durable projection, so this only appends meaningful checkpoints.
+      persistSnapshot(snap);
+    }
+  };
 
   /** Resolve the manager service once per runtime and wire the extension hooks. */
   const getManager = () => {
@@ -154,8 +192,8 @@ export default function (pi: ExtensionAPI) {
       .then((manager) => {
         manager.view.setOnSettled(onSettled);
         unsubStatus?.();
-        unsubStatus = manager.view.subscribe(() => updateStatus(manager));
-        updateStatus(manager);
+        unsubStatus = manager.view.subscribe(() => persistManager(manager));
+        persistManager(manager);
         return manager;
       });
     return managerPromise;
@@ -189,10 +227,18 @@ export default function (pi: ExtensionAPI) {
           output: truncatedOutput(snap),
         }),
         display: true,
-        details: { id: snap.id, title: snap.title, status: snap.status },
+        details: {
+          id: snap.id,
+          title: snap.title,
+          status: snap.status,
+          settledAt: snap.settledAt,
+        },
       },
       { deliverAs: "followUp", triggerTurn: true },
     );
+    // The follow-up may still be queued in memory while the parent streams.
+    // Keep the durable state pending; restoration recognizes the eventual
+    // custom_message entry and repairs it to delivered.
   };
 
   const flushResults = () => {
@@ -207,11 +253,14 @@ export default function (pi: ExtensionAPI) {
       id: snap.id,
       title: snap.title,
       status: snap.status,
+      settledAt: snap.settledAt,
       errorText: snap.errorText,
       prompt: snap.prompt,
       answer: truncatedOutput(snap),
       sessionFilePath: snap.meta.sessionFilePath,
     });
+    deliveryStates.set(snap.id, "delivered");
+    persistSnapshot(snap, true);
     ui?.notify(
       snap.status === "error"
         ? `by the way “${snap.title}” failed — reopen it with /subagents`
@@ -229,37 +278,161 @@ export default function (pi: ExtensionAPI) {
       return;
     }
     if (consumed) {
+      // Interest from wait/cancel is transient until its tool result is
+      // committed. Keep the checkpoint pending and derive durable
+      // consumption from that tool result during restoration.
       resultDelivery.consume([snap.id]);
+      deliveryStates.set(snap.id, "pending");
+      persistSnapshot(snap);
       return;
     }
     // Keep the result retractable while the parent is working. A later
     // subagent_wait can consume it before agent_settled flushes follow-ups.
     // Defer a copy: the live snapshot keeps mutating if the subagent is
     // restarted before the deferred result flushes.
+    deliveryStates.set(snap.id, "pending");
+    persistSnapshot(snap);
     resultDelivery.defer({ ...snap, meta: { ...snap.meta } });
     if (sessionContext?.isIdle()) flushResults();
   };
 
-  pi.on("session_start", (_event, ctx) => {
+  const disposeRuntime = async () => {
+    resultDelivery.clear();
+    unsubStatus?.();
+    unsubStatus = undefined;
+    ui?.setStatus("subagents", undefined);
+    const closing = runtime;
+    runtime = undefined;
+    managerPromise = undefined;
+    // Disposing the runtime runs the manager finalizer, which tears down all
+    // subagent scopes and their real child processes.
+    await closing?.dispose();
+  };
+
+  const restoreSession = async (ctx: ExtensionContext) => {
+    const branch = ctx.sessionManager.getBranch();
+    const states = readPersistedStates(branch);
+    const evidence = readDeliveredIds(branch);
+    spawnOptions.clear();
+    deliveryStates.clear();
+    persistedFingerprints.clear();
+    resultDelivery.clear();
+
+    const inheritedModel = ctx.model
+      ? { provider: ctx.model.provider, id: ctx.model.id }
+      : undefined;
+    const records = [];
+    const pendingRestored: SubagentSnapshot[] = [];
+    for (const state of states.values()) {
+      spawnOptions.set(state.snapshot.id, state.options);
+      const consumedAt = evidence.consumed.get(state.snapshot.id);
+      const deliveredAt = evidence.delivered.get(state.snapshot.id);
+      const delivery =
+        state.snapshot.status !== "running" &&
+        evidence.consumed.has(state.snapshot.id) &&
+        consumedAt === state.snapshot.settledAt
+          ? "consumed"
+          : state.snapshot.status !== "running" &&
+              evidence.delivered.has(state.snapshot.id) &&
+              deliveredAt === state.snapshot.settledAt
+            ? "delivered"
+            : state.snapshot.status === "running"
+              ? "pending"
+              : state.delivery;
+      deliveryStates.set(state.snapshot.id, delivery);
+      const restored = toRestoredSubagent(state, {
+        parentCwd: ctx.cwd,
+        projectTrusted: resolveChildProjectTrust({
+          parentCwd: ctx.cwd,
+          childCwd: state.snapshot.cwd,
+          parentTrusted: ctx.isProjectTrusted(),
+        }),
+        inheritedModel,
+        inheritedThinkingLevel: pi.getThinkingLevel(),
+        modelRegistry: ctx.modelRegistry,
+      });
+      records.push(restored);
+      if (delivery === "pending") pendingRestored.push(restored.snapshot);
+    }
+
+    restoring = true;
+    try {
+      const manager = await getManager();
+      await runTool(getRuntime(), manager.restore(records));
+      updateStatus(manager);
+      for (const snap of manager.view.list()) {
+        const state = createPersistedState(
+          snap,
+          spawnOptions.get(snap.id) ?? {},
+          deliveryStates.get(snap.id) ?? "pending",
+        );
+        persistedFingerprints.set(snap.id, JSON.stringify(state));
+      }
+    } finally {
+      restoring = false;
+    }
+
+    // A persisted running checkpoint is converted to an interrupted result by
+    // toRestoredSubagent. Save that normalization before delivering it.
+    for (const record of records) {
+      const original = states.get(record.snapshot.id)?.snapshot;
+      if (original?.status === "running") {
+        persistSnapshot(record.snapshot, true);
+      }
+    }
+    for (const snap of pendingRestored) {
+      if (snap.origin === "btw") {
+        queueMicrotask(() => {
+          if (sessionContext === ctx) deliverBtwResult(snap);
+        });
+      } else {
+        resultDelivery.defer({ ...snap, meta: { ...snap.meta } });
+      }
+    }
+    queueMicrotask(() => {
+      if (sessionContext === ctx && ctx.isIdle()) flushResults();
+    });
+  };
+
+  pi.on("session_start", async (_event, ctx) => {
     sessionContext = ctx;
     if (ctx.hasUI) ui = ctx.ui;
+    await restoreSession(ctx);
+  });
+
+  pi.on("session_tree", async (_event, ctx) => {
+    await disposeRuntime();
+    sessionContext = ctx;
+    if (ctx.hasUI) ui = ctx.ui;
+    await restoreSession(ctx);
   });
 
   pi.on("agent_settled", flushResults);
 
   pi.on("session_shutdown", async () => {
+    const manager = managerPromise ? await managerPromise.catch(() => undefined) : undefined;
+    if (manager && sessionContext) {
+      for (const snap of manager.view.list()) {
+        if (snap.status !== "running") continue;
+        deliveryStates.set(snap.id, "pending");
+        persistSnapshot(
+          {
+            ...snap,
+            status: "error",
+            settledAt: Date.now(),
+            errorText: "Parent session exited while this subagent was active",
+            liveAssistant: undefined,
+            liveTools: [],
+            queued: [],
+            finalText: "",
+          },
+          true,
+        );
+      }
+    }
     sessionContext = undefined;
-    resultDelivery.clear();
-    unsubStatus?.();
-    unsubStatus = undefined;
-    ui?.setStatus("subagents", undefined);
+    await disposeRuntime();
     ui = undefined;
-    const closing = runtime;
-    runtime = undefined;
-    managerPromise = undefined;
-    // Disposing the runtime runs the manager finalizer, which tears down all
-    // subagent scopes (and, later, their real child processes).
-    await closing?.dispose();
   });
 
   // --- Tools -------------------------------------------------------------
@@ -330,6 +503,12 @@ export default function (pi: ExtensionAPI) {
         }),
         { signal, interruptMessage: "Subagent spawn aborted." },
       );
+      spawnOptions.set(snap.id, {
+        model: params.model,
+        reasoningEffort: params.reasoning_effort,
+      });
+      deliveryStates.set(snap.id, "pending");
+      persistSnapshot(snap, true);
 
       return {
         content: [
@@ -399,6 +578,8 @@ export default function (pi: ExtensionAPI) {
 
       // Settlement may have happened before this wait began. Remove any
       // deferred automatic delivery now that the tool is returning the result.
+      // This suppresses in-process automatic delivery. Durable consumption is
+      // inferred from the tool result after pi commits it to the session.
       resultDelivery.consume(ids);
 
       const sections: string[] = [];
@@ -442,7 +623,12 @@ export default function (pi: ExtensionAPI) {
         details: {
           results: ids.map((id) => {
             const snap = manager.view.get(id);
-            return { id, title: snap?.title, status: snap?.status };
+            return {
+              id,
+              title: snap?.title,
+              status: snap?.status,
+              settledAt: snap?.settledAt,
+            };
           }),
         },
       };
@@ -496,6 +682,7 @@ export default function (pi: ExtensionAPI) {
             id: entry.id,
             title: entry.title,
             status: entry.status,
+            settledAt: manager.view.get(entry.id)?.settledAt,
           })),
         },
       };
@@ -709,6 +896,9 @@ export default function (pi: ExtensionAPI) {
       );
       return;
     }
+    spawnOptions.set(snap.id, {});
+    deliveryStates.set(snap.id, "pending");
+    persistSnapshot(snap, true);
 
     await openSubagentTakeover(ctx, manager.view, snap.id, {
       badge: "by the way",

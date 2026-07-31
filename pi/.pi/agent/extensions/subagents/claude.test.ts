@@ -70,6 +70,47 @@ test(
 );
 
 test(
+  "Claude backend resumes a persisted session for another turn",
+  { timeout: 90_000 },
+  async (t) => {
+    if (!(await claudeAvailable())) {
+      t.skip("Claude Code executable is unavailable");
+      return;
+    }
+
+    const firstRuntime = createSubagentRuntime();
+    let persisted;
+    try {
+      const first = await firstRuntime.runPromise(SubagentManager);
+      const started = await runTool(
+        firstRuntime,
+        first.spawn("claude", task("Reply with exactly: first claude turn")),
+      );
+      await deadline(runTool(firstRuntime, first.waitFor([started.id])), 45_000);
+      persisted = first.view.get(started.id);
+      assert.ok(persisted);
+      assert.ok(persisted.meta.nativeCursor);
+    } finally {
+      await firstRuntime.dispose();
+    }
+
+    const secondRuntime = createSubagentRuntime();
+    try {
+      const second = await secondRuntime.runPromise(SubagentManager);
+      await runTool(
+        secondRuntime,
+        second.restore([{ snapshot: persisted, task: task("Reply with exactly: first claude turn") }]),
+      );
+      await runTool(secondRuntime, second.send(persisted.id, "Reply with exactly: second claude turn"));
+      await deadline(runTool(secondRuntime, second.waitFor([persisted.id])), 45_000);
+      assert.match(second.view.get(persisted.id)?.finalText ?? "", /second claude turn/i);
+    } finally {
+      await secondRuntime.dispose();
+    }
+  },
+);
+
+test(
   "Claude backend interrupt settles a live run as aborted",
   { timeout: 60_000 },
   async (t) => {

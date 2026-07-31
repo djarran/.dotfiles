@@ -11,6 +11,7 @@
  *   the child session_shutdown hook and disposes the session.
  */
 
+import { existsSync } from "node:fs";
 import type { AssistantMessage, Message, Model } from "@earendil-works/pi-ai";
 import type {
   AgentSession,
@@ -261,6 +262,7 @@ function boundedError(error: unknown) {
 
 const makePiSession = (
   task: SpawnTask,
+  resumeMeta?: SubagentMeta,
 ): Effect.Effect<SubagentSession, SpawnError, Scope.Scope> =>
   Effect.gen(function* () {
     const registry = task.parent.modelRegistry;
@@ -272,12 +274,17 @@ const makePiSession = (
 
     const model = yield* Effect.try({
       try: () =>
-        resolvePiModel(registry, task.model, task.parent.inheritedModel),
+        resumeMeta
+          ? undefined
+          : resolvePiModel(registry, task.model, task.parent.inheritedModel),
       catch: (error) => new SpawnError({ message: boundedError(error) }),
     });
     // pi's thinking levels ARE the shared reasoning-effort scale.
-    const thinkingLevel = (task.reasoningEffort ??
-      task.parent.inheritedThinkingLevel) as ThinkingLevel | undefined;
+    const thinkingLevel = (resumeMeta
+      ? undefined
+      : (task.reasoningEffort ?? task.parent.inheritedThinkingLevel)) as
+      | ThinkingLevel
+      | undefined;
 
     const session = yield* Effect.tryPromise({
       try: async () => {
@@ -285,9 +292,35 @@ const makePiSession = (
           task.cwd,
           task.parent.projectTrusted,
         );
+        if (
+          resumeMeta?.sessionFilePath &&
+          !existsSync(resumeMeta.sessionFilePath)
+        ) {
+          throw new Error(
+            `Persisted pi session file no longer exists: ${resumeMeta.sessionFilePath}`,
+          );
+        }
+        const childSessionManager = resumeMeta?.sessionFilePath
+          ? SessionManager.open(resumeMeta.sessionFilePath, undefined, task.cwd)
+          : SessionManager.create(task.cwd);
+        if (resumeMeta) {
+          if (
+            resumeMeta.nativeSessionId &&
+            childSessionManager.getSessionId() !== resumeMeta.nativeSessionId
+          ) {
+            throw new Error("Persisted pi session id does not match its file.");
+          }
+          if (
+            !resumeMeta.nativeCursor ||
+            !childSessionManager.getEntry(resumeMeta.nativeCursor)
+          ) {
+            throw new Error("Persisted pi session cursor is unavailable.");
+          }
+          childSessionManager.branch(resumeMeta.nativeCursor);
+        }
         const { session } = await createAgentSession({
           cwd: task.cwd,
-          sessionManager: SessionManager.create(task.cwd),
+          sessionManager: childSessionManager,
           settingsManager,
           resourceLoader: loader,
           model,
@@ -350,6 +383,8 @@ const makePiSession = (
         modelLabel: m ? `${m.provider}/${m.id}` : undefined,
         contextWindow: m?.contextWindow,
         sessionFilePath: session.sessionFile,
+        nativeSessionId: session.sessionId,
+        nativeCursor: session.sessionManager.getLeafId() ?? undefined,
       };
     };
 
@@ -512,15 +547,17 @@ const makePiSession = (
       });
     };
 
-    // Session naming is best-effort.
-    yield* Effect.try(() =>
-      session.sessionManager.appendSessionInfo(
-        `${task.origin === "btw" ? "btw" : "subagent"}: ${task.title}`,
-      ),
-    ).pipe(Effect.ignore);
+    if (!resumeMeta) {
+      // Session naming is best-effort.
+      yield* Effect.try(() =>
+        session.sessionManager.appendSessionInfo(
+          `${task.origin === "btw" ? "btw" : "subagent"}: ${task.title}`,
+        ),
+      ).pipe(Effect.ignore);
+    }
 
     emit({ _tag: "MetaChanged", meta: currentMeta() });
-    startRun(task.prompt);
+    if (!resumeMeta) startRun(task.prompt);
 
     return {
       meta: Effect.sync(currentMeta),
@@ -571,5 +608,11 @@ export const piBackend: SubagentBackend = {
   capabilities: { steering: true, modelSelection: true, reasoningEffort: true },
   // In-process SDK: always available.
   available: Effect.succeed(true),
-  spawn: makePiSession,
+  spawn: (task) => makePiSession(task),
+  resume: (task, meta) =>
+    meta.sessionFilePath
+      ? makePiSession(task, meta)
+      : Effect.fail(
+          new SpawnError({ message: "Persisted pi session has no session file." }),
+        ),
 };

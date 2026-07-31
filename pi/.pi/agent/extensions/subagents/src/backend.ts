@@ -64,6 +64,15 @@ export interface SubagentBackend {
   spawn(
     task: SpawnTask,
   ): Effect.Effect<SubagentSession, SpawnError, Scope.Scope>;
+  /**
+   * Reopen an existing persisted conversation in an idle state. This does not
+   * repeat the original prompt; the caller may subsequently use send() to
+   * start another turn.
+   */
+  resume(
+    task: SpawnTask,
+    meta: SubagentMeta,
+  ): Effect.Effect<SubagentSession, SpawnError, Scope.Scope>;
 }
 
 /** Registry of all wired backends, keyed by name. */

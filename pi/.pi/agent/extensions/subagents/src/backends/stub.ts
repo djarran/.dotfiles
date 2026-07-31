@@ -51,6 +51,7 @@ export function makeStubBackend(profile: StubProfile): SubagentBackend {
     // Real impls probe binary-on-PATH / SDK import / credentials here.
     available: Effect.succeed(true),
     spawn: (task) => makeStubSession(profile, task),
+    resume: (task) => makeStubSession(profile, task, true),
   };
 }
 
@@ -73,6 +74,7 @@ function chunked(text: string, size: number): string[] {
 const makeStubSession = (
   profile: StubProfile,
   task: SpawnTask,
+  resumed = false,
 ): Effect.Effect<SubagentSession, never, Scope.Scope> =>
   Effect.gen(function* () {
     const sessionId = `stub-${profile.backend}-${++sessionCounter}`;
@@ -260,7 +262,7 @@ const makeStubSession = (
     );
     yield* emit({ _tag: "MetaChanged", meta: state.meta });
     // The session cannot be closed yet, so the initial submit cannot fail.
-    yield* submit(task.prompt).pipe(Effect.orDie);
+    if (!resumed) yield* submit(task.prompt).pipe(Effect.orDie);
 
     return {
       meta: Effect.sync(() => state.meta),

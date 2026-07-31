@@ -286,6 +286,7 @@ interface NativeQueuedMessage extends QueuedMessage {
 
 const makeClaudeSession = (
   task: SpawnTask,
+  resumeMeta?: SubagentMeta,
 ): Effect.Effect<SubagentSession, SpawnError, Scope.Scope> =>
   Effect.gen(function* () {
     const input = new ClaudeInput();
@@ -314,6 +315,7 @@ const makeClaudeSession = (
         // Claude models used by this backend currently expose 200k context;
         // result.modelUsage replaces this fallback when the CLI knows better.
         contextWindow: CLAUDE_CONTEXT_WINDOW,
+        ...resumeMeta,
       } satisfies SubagentMeta as SubagentMeta,
     };
 
@@ -346,6 +348,14 @@ const makeClaudeSession = (
               ? { pathToClaudeCodeExecutable: claudeBinary }
               : {}),
             ...(task.model ? { model: task.model } : {}),
+            ...(resumeMeta?.nativeSessionId
+              ? {
+                  resume: resumeMeta.nativeSessionId,
+                  ...(resumeMeta.nativeCursor
+                    ? { resumeSessionAt: resumeMeta.nativeCursor }
+                    : {}),
+                }
+              : {}),
             ...(thinkingBudget !== undefined
               ? { maxThinkingTokens: thinkingBudget }
               : {}),
@@ -425,6 +435,9 @@ const makeClaudeSession = (
 
       if (message.message.model !== state.meta.modelLabel) {
         updateMeta({ modelLabel: message.message.model });
+      }
+      if (message.parent_tool_use_id == null && message.uuid) {
+        updateMeta({ nativeCursor: message.uuid });
       }
       for (const block of message.message.content) {
         if (block.type !== "tool_use") continue;
@@ -632,7 +645,7 @@ const makeClaudeSession = (
     };
 
     emit({ _tag: "MetaChanged", meta: state.meta });
-    submit(task.prompt);
+    if (!resumeMeta) submit(task.prompt);
 
     return {
       meta: Effect.sync(() => state.meta),
@@ -697,5 +710,13 @@ export const claudeBackend: SubagentBackend = {
   name: "claude",
   capabilities: { steering: true, modelSelection: true, reasoningEffort: true },
   available: Effect.sync(() => resolveClaudeBinary() !== undefined),
-  spawn: makeClaudeSession,
+  spawn: (task) => makeClaudeSession(task),
+  resume: (task, meta) =>
+    meta.nativeSessionId && meta.nativeCursor
+      ? makeClaudeSession(task, meta)
+      : Effect.fail(
+          new SpawnError({
+            message: "Persisted Claude session has no resumable message cursor.",
+          }),
+        ),
 };

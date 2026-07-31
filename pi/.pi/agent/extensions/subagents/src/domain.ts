@@ -63,6 +63,11 @@ export interface SpawnTask {
   readonly parent: ParentContext;
 }
 
+export interface PersistedSpawnOptions {
+  readonly model?: string;
+  readonly reasoningEffort?: ReasoningEffort;
+}
+
 export interface SubagentMeta {
   readonly backend: BackendName;
   /** Display label, e.g. "anthropic/claude-opus-4-5" or "gpt-5-codex". */
@@ -73,6 +78,10 @@ export interface SubagentMeta {
   readonly sessionFilePath?: string;
   /** Claude session id / Codex conversation id. */
   readonly nativeSessionId?: string;
+  /** Backend-native branch cursor (pi leaf id / Claude message uuid). */
+  readonly nativeCursor?: string;
+  /** Number of completed Codex turns at this checkpoint. */
+  readonly nativeTurnCount?: number;
 }
 
 // --- Transcript ------------------------------------------------------------
@@ -211,6 +220,12 @@ export interface SubagentSnapshot {
   readonly finalText: string;
   /** Count of finalized assistant messages (for subagent_check). */
   readonly turns: number;
+}
+
+/** Durable manager input reconstructed from a parent session branch. */
+export interface RestoredSubagent {
+  readonly snapshot: SubagentSnapshot;
+  readonly task: SpawnTask;
 }
 
 /** Final text, or the live streaming buffer while a run is active (v1 `latestOutput`). */

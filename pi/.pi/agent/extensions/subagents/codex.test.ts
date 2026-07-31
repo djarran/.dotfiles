@@ -68,6 +68,48 @@ test(
 );
 
 test(
+  "Codex backend resumes a persisted thread for another turn",
+  { timeout: 120_000 },
+  async (t) => {
+    if (!(await codexAvailable())) {
+      t.skip("codex executable is unavailable");
+      return;
+    }
+
+    const firstRuntime = createSubagentRuntime();
+    let persisted;
+    try {
+      const first = await firstRuntime.runPromise(SubagentManager);
+      const spawned = await runTool(
+        firstRuntime,
+        first.spawn("codex", task("Reply with exactly: first codex turn")),
+      );
+      await deadline(runTool(firstRuntime, first.waitFor([spawned.id])), 60_000);
+      persisted = first.view.get(spawned.id);
+      assert.ok(persisted);
+      assert.equal(persisted.meta.nativeTurnCount, 1);
+    } finally {
+      await firstRuntime.dispose();
+    }
+
+    const secondRuntime = createSubagentRuntime();
+    try {
+      const second = await secondRuntime.runPromise(SubagentManager);
+      await runTool(
+        secondRuntime,
+        second.restore([{ snapshot: persisted, task: task("Reply with exactly: first codex turn") }]),
+      );
+      await runTool(secondRuntime, second.send(persisted.id, "Reply with exactly: second codex turn"));
+      await deadline(runTool(secondRuntime, second.waitFor([persisted.id])), 60_000);
+      assert.match(second.view.get(persisted.id)?.finalText ?? "", /second codex turn/i);
+      assert.equal(second.view.get(persisted.id)?.meta.nativeTurnCount, 2);
+    } finally {
+      await secondRuntime.dispose();
+    }
+  },
+);
+
+test(
   "Codex backend interrupt settles a live manager run",
   { timeout: 30_000 },
   async (t) => {
